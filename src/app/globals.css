@@ -12,12 +12,33 @@
   --color-obsidian: #121212;
   --color-charcoal: #1E1E1E;
   --color-sand: #EAE3D2;
+
+  --animate-marquee: marquee 35s linear infinite;
+  --animate-marquee-slow: marquee 50s linear infinite;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
 }
 
 /* Custom Utilities and Animations */
+.pause-hover:hover .animate-marquee {
+  animation-play-state: paused;
+}
+
+.pause-hover:hover .animate-marquee-slow {
+  animation-play-state: paused;
+}
+
 .animate-fade-in-up {
   animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
 
 .delay-100 {
   animation-delay: 0.1s;

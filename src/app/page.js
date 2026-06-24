@@ -950,42 +950,45 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Testimonial Cards Layout */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {testimonials.map((t, idx) => (
-              <div
-                key={idx}
-                className="p-6 rounded-2xl bg-stone-50 border border-stone-200/60 flex flex-col justify-between space-y-6 hover:bg-white hover:shadow-lg transition-all duration-300"
-              >
-                <div className="space-y-4">
-                  {/* Stars indicator */}
-                  <div className="flex">
-                    {[...Array(t.rating)].map((_, i) => (
-                      <svg key={i} className="w-4 h-4 text-amber-500 fill-current" viewBox="0 0 24 24">
-                        <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
-                      </svg>
-                    ))}
+          {/* Testimonial Marquee Row */}
+          <div className="relative w-full overflow-hidden py-4 pause-hover">
+            <div className="flex gap-6 w-max animate-marquee">
+              {[...testimonials, ...testimonials].map((t, idx) => (
+                <div
+                  key={idx}
+                  className="w-[320px] sm:w-[380px] p-6 rounded-2xl bg-stone-50 border border-stone-200/60 flex flex-col justify-between space-y-6 hover:bg-white hover:shadow-lg transition-all duration-300 flex-shrink-0"
+                >
+                  <div className="space-y-4">
+                    {/* Stars indicator */}
+                    <div className="flex">
+                      {[...Array(t.rating)].map((_, i) => (
+                        <svg key={i} className="w-4 h-4 text-amber-500 fill-current" viewBox="0 0 24 24">
+                          <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+                        </svg>
+                      ))}
+                    </div>
+                    
+                    <p className="text-stone-700 text-sm leading-relaxed font-sans italic">
+                      "{t.text}"
+                    </p>
                   </div>
-                  
-                  <p className="text-stone-700 text-sm leading-relaxed font-sans italic">
-                    "{t.text}"
-                  </p>
-                </div>
 
-                <div className="flex items-center gap-3 pt-4 border-t border-stone-200/50">
-                  {/* Initials Avatar */}
-                  <div className="w-10 h-10 rounded-full bg-[#C5A880]/20 text-[#A4865E] font-serif font-bold text-sm flex items-center justify-center">
-                    {t.name.split(" ").map(w => w[0]).join("")}
+                  <div className="flex items-center gap-3 pt-4 border-t border-stone-200/50 flex-shrink-0">
+                    {/* Initials Avatar */}
+                    <div className="w-10 h-10 rounded-full bg-[#C5A880]/20 text-[#A4865E] font-serif font-bold text-sm flex items-center justify-center flex-shrink-0">
+                      {t.name.split(" ").map(w => w[0]).join("")}
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-stone-950">{t.name}</h4>
+                      <p className="text-[10px] text-stone-500 mt-0.5">{t.role}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-stone-950">{t.name}</h4>
-                    <p className="text-[10px] text-stone-500 mt-0.5">{t.role}</p>
-                  </div>
-                </div>
 
-              </div>
-            ))}
+                </div>
+              ))}
+            </div>
           </div>
+
 
         </div>
       </section>
