@@ -4,20 +4,39 @@ import db from '@/lib/db';
 import { users } from '@/lib/schema';
 import { eq } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
+import bcrypt from 'bcryptjs';
+import { createSession, deleteSession } from '@/lib/session';
+import { z } from 'zod';
+
+// Skema validasi menggunakan Zod
+const AuthSchema = z.object({
+  email: z.string()
+    .min(1, 'Email wajib diisi.')
+    .email('Format alamat email tidak valid.')
+    .trim(),
+  password: z.string()
+    .min(6, 'Kata sandi minimal harus 6 karakter.')
+    .max(50, 'Kata sandi maksimal 50 karakter.')
+});
 
 export async function loginUser(prevState, formData) {
   const email = formData.get('email');
   const password = formData.get('password');
 
-  if (!email || !password) {
-    return { success: false, message: 'Email dan password harus diisi.' };
+  // 1. Validasi input dengan Zod
+  const validation = AuthSchema.safeParse({ email, password });
+  if (!validation.success) {
+    // Ambil pesan error pertama
+    const errorMessage = validation.error.errors[0].message;
+    return { success: false, message: errorMessage };
   }
 
+  const { email: validatedEmail, password: validatedPassword } = validation.data;
   let isLoginSuccessful = false;
 
   try {
-    // 1. Cari user di database menggunakan Drizzle
-    const results = await db.select().from(users).where(eq(users.email, email));
+    // 2. Cari user di database menggunakan Drizzle
+    const results = await db.select().from(users).where(eq(users.email, validatedEmail));
     
     if (results.length === 0) {
       return { success: false, message: 'Email tidak ditemukan.' };
@@ -25,10 +44,14 @@ export async function loginUser(prevState, formData) {
 
     const user = results[0];
 
-    // 2. Cek password (plaintext untuk belajar)
-    if (user.password !== password) {
+    // 3. Cek password dengan membandingkan hash
+    const isPasswordValid = await bcrypt.compare(validatedPassword, user.password);
+    if (!isPasswordValid) {
       return { success: false, message: 'Password salah.' };
     }
+
+    // 4. Buat secure session cookie
+    await createSession(user.id, user.email);
 
     isLoginSuccessful = true;
   } catch (error) {
@@ -46,21 +69,30 @@ export async function registerUser(prevState, formData) {
   const email = formData.get('email');
   const password = formData.get('password');
 
-  if (!email || !password) {
-    return { success: false, message: 'Email dan password harus diisi.' };
+  // 1. Validasi input dengan Zod
+  const validation = AuthSchema.safeParse({ email, password });
+  if (!validation.success) {
+    // Ambil pesan error pertama
+    const errorMessage = validation.error.errors[0].message;
+    return { success: false, message: errorMessage };
   }
 
+  const { email: validatedEmail, password: validatedPassword } = validation.data;
+
   try {
-    // 1. Cek apakah email sudah terdaftar menggunakan Drizzle
-    const existing = await db.select().from(users).where(eq(users.email, email));
+    // 2. Cek apakah email sudah terdaftar menggunakan Drizzle
+    const existing = await db.select().from(users).where(eq(users.email, validatedEmail));
     if (existing.length > 0) {
       return { success: false, message: 'Email sudah terdaftar.' };
     }
 
-    // 2. Simpan user baru menggunakan Drizzle
+    // 3. Hash password sebelum disimpan
+    const hashedPassword = await bcrypt.hash(validatedPassword, 10);
+
+    // 4. Simpan user baru menggunakan Drizzle
     await db.insert(users).values({
-      email,
-      password,
+      email: validatedEmail,
+      password: hashedPassword,
     });
     
     return { success: true, message: 'Registrasi Berhasil! Silakan masuk.' };
@@ -68,4 +100,9 @@ export async function registerUser(prevState, formData) {
     console.error('Database error during registration:', error);
     return { success: false, message: 'Gagal menyimpan ke database.' };
   }
+}
+
+export async function logoutUser() {
+  await deleteSession();
+  redirect('/login');
 }

@@ -1,6 +1,12 @@
 import Link from "next/link";
+import { getSession } from "@/lib/session";
+import { logoutUser } from "@/app/login/actions";
 
-export default function AdminLayout({ children }) {
+export default async function AdminLayout({ children }) {
+  const session = await getSession();
+  const email = session?.email || "Admin";
+  const initials = email.slice(0, 2).toUpperCase();
+
   return (
     <div className="flex min-h-screen bg-zinc-950 text-zinc-50 font-sans">
       {/* Sidebar Kiri */}
@@ -11,7 +17,7 @@ export default function AdminLayout({ children }) {
             <span className="text-2xl">🔒</span>
             <span className="font-bold text-lg tracking-wider text-white">ADMIN PANEL</span>
           </div>
-
+ 
           {/* Menu Navigasi */}
           <nav className="flex flex-col gap-2">
             <Link
@@ -35,14 +41,16 @@ export default function AdminLayout({ children }) {
           </nav>
         </div>
 
-        {/* Tombol Kembali ke Web Utama di bagian bawah */}
+        {/* Tombol Logout di bagian bawah */}
         <div>
-          <Link
-            href="/"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-zinc-400 hover:bg-zinc-800 hover:text-rose-400 transition-colors font-medium border border-dashed border-zinc-800 hover:border-zinc-700"
-          >
-            <span>←</span> Keluar Ke Web
-          </Link>
+          <form action={logoutUser}>
+            <button
+              type="submit"
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-zinc-400 hover:bg-zinc-800 hover:text-rose-400 transition-colors font-medium border border-dashed border-zinc-800 hover:border-zinc-700 text-left cursor-pointer"
+            >
+              <span>←</span> Keluar / Logout
+            </button>
+          </form>
         </div>
       </aside>
 
@@ -53,9 +61,9 @@ export default function AdminLayout({ children }) {
           <h2 className="text-zinc-400 font-medium">Selamat Datang, Admin</h2>
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center font-bold text-zinc-950 text-sm">
-              AD
+              {initials}
             </div>
-            <span className="text-sm font-medium text-zinc-300">Administrator</span>
+            <span className="text-sm font-medium text-zinc-300">{email}</span>
           </div>
         </header>
 
@@ -67,3 +75,4 @@ export default function AdminLayout({ children }) {
     </div>
   );
 }
+
