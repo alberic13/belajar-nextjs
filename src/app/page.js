@@ -158,7 +158,10 @@ const HeroSection = ({ title, subtitle, actions, stats, images, className }) => 
   ]);
 
   const collageImagesRef = useRef(collageImages);
-  collageImagesRef.current = collageImages;
+
+  React.useEffect(() => {
+    collageImagesRef.current = collageImages;
+  }, [collageImages]);
 
   React.useEffect(() => {
     const timer = setInterval(() => {
@@ -294,66 +297,74 @@ const HeroSection = ({ title, subtitle, actions, stats, images, className }) => 
       ease: "sine.inOut"
     });
 
-    // Scroll parallax effect on the collage wrappers
-    gsap.to(".hero-img-1", {
-      y: -40,
-      scrollTrigger: {
-        trigger: triggerRef.current,
-        start: "top top",
-        end: "bottom top",
-        scrub: true,
-      }
-    });
-
-    gsap.to(".hero-img-2", {
-      y: 20,
-      scrollTrigger: {
-        trigger: triggerRef.current,
-        start: "top top",
-        end: "bottom top",
-        scrub: true,
-      }
-    });
-
-    gsap.to(".hero-img-3", {
-      y: -20,
-      scrollTrigger: {
-        trigger: triggerRef.current,
-        start: "top top",
-        end: "bottom top",
-        scrub: true,
-      }
-    });
-
-    // Shrink scroll animation
-    gsap.fromTo(
-      containerRef.current,
-      {
-        scale: 1,
-        borderRadius: "0px",
-        opacity: 1,
-      },
-      {
-        scale: 0.92,
-        borderRadius: "40px",
-        opacity: 0.9,
-        ease: "none",
+    // Desktop-only scroll animations
+    const mm = gsap.matchMedia();
+    mm.add("(min-width: 1024px)", () => {
+      // Scroll parallax effect on the collage wrappers
+      gsap.to(".hero-img-1", {
+        y: -40,
         scrollTrigger: {
           trigger: triggerRef.current,
           start: "top top",
-          end: "bottom bottom",
+          end: "bottom top",
           scrub: true,
         }
-      }
-    );
+      });
+
+      gsap.to(".hero-img-2", {
+        y: 20,
+        scrollTrigger: {
+          trigger: triggerRef.current,
+          start: "top top",
+          end: "bottom top",
+          scrub: true,
+        }
+      });
+
+      gsap.to(".hero-img-3", {
+        y: -20,
+        scrollTrigger: {
+          trigger: triggerRef.current,
+          start: "top top",
+          end: "bottom top",
+          scrub: true,
+        }
+      });
+
+      // Shrink scroll animation
+      gsap.fromTo(
+        containerRef.current,
+        {
+          scale: 1,
+          borderRadius: "0px",
+          opacity: 1,
+        },
+        {
+          scale: 0.92,
+          borderRadius: "40px",
+          opacity: 0.9,
+          ease: "none",
+          scrollTrigger: {
+            trigger: triggerRef.current,
+            start: "top top",
+            end: "bottom bottom",
+            scrub: true,
+          }
+        }
+      );
+    });
+
+    return () => {
+      mm.revert();
+    };
   }, { scope: triggerRef });
 
   return (
-    <div ref={triggerRef} className="relative w-full h-[125vh] lg:h-[135vh] bg-stone-950 overflow-hidden">
-      <div className="sticky top-20 w-full min-h-[calc(100vh-5rem)] lg:h-[calc(100vh-5rem)] z-10">
+    <div ref={triggerRef} className="relative w-full h-auto lg:h-[135vh] bg-stone-950 overflow-hidden">
+      <div className="relative lg:sticky lg:top-20 w-full min-h-0 lg:min-h-[calc(100vh-5rem)] lg:h-[calc(100vh-5rem)] z-10">
         <section
           ref={containerRef}
-          className={cn('w-full h-full overflow-hidden bg-background flex items-center py-12 lg:py-0 border-x border-b border-stone-800/10 shadow-lg', className)}
+          className={cn('w-full h-auto lg:h-full overflow-visible lg:overflow-hidden bg-background flex items-center py-16 lg:py-0 border-x border-b border-stone-800/10 shadow-lg', className)}
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-8 w-full">
             {/* Left Column: Text Content */}
@@ -1552,7 +1563,7 @@ export default function Home() {
                       </div>
 
                       <p className="text-stone-700 text-sm leading-relaxed font-sans italic">
-                        "{renderTextWithExotic(t.text)}"
+                        &quot;{renderTextWithExotic(t.text)}&quot;
                       </p>
                     </div>
 
