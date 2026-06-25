@@ -1,7 +1,13 @@
 "use client";
 
-import React, { useState } from "react";
-import { motion } from "framer-motion";
+import React, { useState, useRef } from "react";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { useGSAP } from "@gsap/react";
+
+if (typeof window !== "undefined") {
+  gsap.registerPlugin(ScrollTrigger);
+}
 
 // Helper to format "Exotic" or "EXOTIC" in text to be purple
 const renderTextWithExotic = (text) => {
@@ -19,108 +25,79 @@ const renderTextWithExotic = (text) => {
   });
 };
 
-// Custom Hook to track if an element has scrolled into view
-function useIntersectionObserver(options = {}) {
-  const [isIntersecting, setIsIntersecting] = useState(false);
-  const elementRef = React.useRef(null);
+// Wrapper component that animates its children on scroll entrance using GSAP ScrollTrigger
+const Reveal = ({ children, className = "", delay = 0, duration = 800, y = 30 }) => {
+  const elementRef = useRef(null);
 
-  React.useEffect(() => {
-    if (typeof window === "undefined" || !window.IntersectionObserver) {
-      setIsIntersecting(true);
-      return;
-    }
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) {
-        setIsIntersecting(true);
-        if (options.triggerOnce) {
-          observer.unobserve(entry.target);
-        }
-      } else {
-        if (!options.triggerOnce) {
-          setIsIntersecting(false);
-        }
+  useGSAP(() => {
+    gsap.fromTo(
+      elementRef.current,
+      { opacity: 0, y: y },
+      {
+        opacity: 1,
+        y: 0,
+        duration: duration / 1000,
+        delay: delay / 1000,
+        ease: "power3.out",
+        scrollTrigger: {
+          trigger: elementRef.current,
+          start: "top 95%",
+          toggleActions: "play none none none",
+        },
       }
-    }, options);
+    );
+  }, { scope: elementRef });
 
-    const currentRef = elementRef.current;
-    if (currentRef) {
-      observer.observe(currentRef);
-    }
-
-    return () => {
-      if (currentRef) {
-        observer.unobserve(currentRef);
-      }
-    };
-  }, [options]);
-
-  return [elementRef, isIntersecting];
-}
-
-// Wrapper component that animates its children on scroll entrance
-const Reveal = ({ children, className = "", delay = 0, duration = 800 }) => {
-  const [ref, isVisible] = useIntersectionObserver({ triggerOnce: true, threshold: 0.05 });
   return (
-    <div
-      ref={ref}
-      className={`transition-all transform ease-out ${
-        isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
-      } ${className}`}
-      style={{
-        transitionDelay: `${delay}ms`,
-        transitionDuration: `${duration}ms`,
-      }}
-    >
+    <div ref={elementRef} className={className}>
       {children}
     </div>
   );
 };
 
-// Animation variants for Framer Motion collage Hero
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.15,
-    },
-  },
+// Accordion panel subcomponent for smooth height animation using GSAP
+const FaqItem = ({ faq, isOpen, onToggle }) => {
+  const panelRef = useRef(null);
+
+  useGSAP(() => {
+    if (isOpen) {
+      gsap.fromTo(
+        panelRef.current,
+        { height: 0, opacity: 0 },
+        { height: "auto", opacity: 1, duration: 0.35, ease: "power2.out" }
+      );
+    } else {
+      gsap.to(panelRef.current, { height: 0, opacity: 0, duration: 0.3, ease: "power2.in" });
+    }
+  }, [isOpen]);
+
+  return (
+    <div className="bg-white rounded-xl border border-stone-200 overflow-hidden transition-all duration-300 hover:border-exotic-purple/20">
+      <button
+        onClick={onToggle}
+        className="w-full p-6 text-left flex items-center justify-between gap-4 font-semibold text-stone-900 hover:text-exotic-purple text-sm sm:text-base cursor-pointer hover:bg-exotic-purple/5 transition-all duration-200"
+      >
+        <span>{faq.q}</span>
+        <span className={`flex-shrink-0 w-6 h-6 rounded-full border border-stone-300 flex items-center justify-center text-exotic-purple transition-transform duration-300 ${isOpen ? "rotate-180 bg-exotic-purple-light/40 border-exotic-purple/20" : ""}`}>
+          ▼
+        </span>
+      </button>
+
+      <div
+        ref={panelRef}
+        style={{ height: 0, overflow: "hidden" }}
+        className="border-stone-100 px-6"
+      >
+        <div className="pb-6 pt-2">
+          <p className="text-stone-600 text-xs sm:text-sm leading-relaxed">
+            {renderTextWithExotic(faq.a)}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 };
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 25 },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: 0.6,
-      ease: [0.16, 1, 0.3, 1],
-    },
-  },
-};
-
-const imageVariants = {
-  hidden: { opacity: 0, scale: 0.82 },
-  visible: {
-    opacity: 1,
-    scale: 1,
-    transition: {
-      duration: 0.6,
-      ease: [0.16, 1, 0.3, 1],
-    },
-  },
-};
-
-const floatingVariants = {
-  animate: {
-    y: [0, -8, 0],
-    transition: {
-      duration: 4,
-      repeat: Infinity,
-      ease: 'easeInOut',
-    },
-  },
-};
 
 // cn helper to merge classnames
 const cn = (...classes) => classes.filter(Boolean).join(" ");
@@ -159,118 +136,459 @@ const Button = ({ children, onClick, variant, size, className, ...props }) => {
   );
 };
 
-// HeroSection component
+const allStockImages = [
+  "/images/hero_beauty.png",
+  "/images/course_hair.png",
+  "/images/course_makeup.png",
+  "/images/course_makeup_2.png",
+  "/images/course_hair_2.png",
+  "/images/course_skincare.png",
+  "/images/course_extensions.png"
+];
+
+// HeroSection component with GSAP animations
 const HeroSection = ({ title, subtitle, actions, stats, images, className }) => {
+  const triggerRef = useRef(null);
+  const containerRef = useRef(null);
+
+  const [collageImages, setCollageImages] = useState([
+    images[0] || "/images/hero_beauty.png",
+    images[1] || "/images/course_hair.png",
+    images[2] || "/images/course_makeup.png"
+  ]);
+
+  const collageImagesRef = useRef(collageImages);
+  collageImagesRef.current = collageImages;
+
+  React.useEffect(() => {
+    const timer = setInterval(() => {
+      const cardIndex = Math.floor(Math.random() * 3);
+      const current = collageImagesRef.current;
+      const currentSet = new Set(current);
+      const available = allStockImages.filter(img => !currentSet.has(img));
+
+      if (available.length === 0) return;
+      const newImg = available[Math.floor(Math.random() * available.length)];
+
+      const wrapperSelector = `.hero-img-${cardIndex + 1}`;
+
+      gsap.to(wrapperSelector, {
+        opacity: 0,
+        scale: 0.93,
+        duration: 0.5,
+        ease: "power2.inOut",
+        onComplete: () => {
+          setCollageImages(prev => {
+            const next = [...prev];
+            next[cardIndex] = newImg;
+            return next;
+          });
+        }
+      });
+    }, 6000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  useGSAP(() => {
+    // Fade back in the collage image card that has been swapped
+    gsap.to(".hero-collage-img-wrapper", {
+      opacity: 1,
+      scale: 1,
+      duration: 0.6,
+      ease: "power2.out",
+      overwrite: "auto"
+    });
+  }, [collageImages]);
+
+  useGSAP(() => {
+    const tl = gsap.timeline();
+
+    // Text animations
+    tl.fromTo(
+      ".hero-title",
+      { opacity: 0, y: 40 },
+      { opacity: 1, y: 0, duration: 0.8, ease: "power4.out" }
+    );
+    tl.fromTo(
+      ".hero-subtitle",
+      { opacity: 0, y: 25 },
+      { opacity: 1, y: 0, duration: 0.8, ease: "power3.out" },
+      "-=0.6"
+    );
+    tl.fromTo(
+      ".hero-action-btn",
+      { opacity: 0, y: 20 },
+      { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", stagger: 0.1 },
+      "-=0.6"
+    );
+    tl.fromTo(
+      ".hero-stat-item",
+      { opacity: 0, y: 20 },
+      { opacity: 1, y: 0, duration: 0.6, ease: "power3.out", stagger: 0.1 },
+      "-=0.5"
+    );
+
+    // Image collage animation
+    tl.fromTo(
+      ".hero-collage-img-wrapper",
+      { opacity: 0, scale: 0.8, rotation: (i) => [5, -5, 3][i] || 0 },
+      { opacity: 1, scale: 1, rotation: 0, duration: 1, ease: "power4.out", stagger: 0.15 },
+      "-=0.8"
+    );
+
+    // Floating registration badge animation
+    tl.fromTo(
+      ".hero-badge",
+      { opacity: 0, scale: 0.8, y: 30 },
+      { opacity: 1, scale: 1, y: 0, duration: 0.8, ease: "back.out(1.5)" },
+      "-=0.6"
+    );
+
+    // Continuous floating animation for background decorative shapes
+    gsap.to(".hero-shape-1", {
+      y: -12,
+      duration: 3,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut"
+    });
+    gsap.to(".hero-shape-2", {
+      y: 10,
+      duration: 4,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut"
+    });
+    gsap.to(".hero-shape-3", {
+      y: -8,
+      duration: 3.5,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut"
+    });
+
+    // Continuous subtle floating loop for collage images themselves
+    gsap.to(".hero-img-1 img", {
+      y: -8,
+      rotation: 0.8,
+      duration: 5,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut"
+    });
+    gsap.to(".hero-img-2 img", {
+      y: 10,
+      rotation: -0.8,
+      duration: 6,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut"
+    });
+    gsap.to(".hero-img-3 img", {
+      y: -6,
+      rotation: 0.5,
+      duration: 5.5,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut"
+    });
+
+    // Scroll parallax effect on the collage wrappers
+    gsap.to(".hero-img-1", {
+      y: -40,
+      scrollTrigger: {
+        trigger: triggerRef.current,
+        start: "top top",
+        end: "bottom top",
+        scrub: true,
+      }
+    });
+
+    gsap.to(".hero-img-2", {
+      y: 20,
+      scrollTrigger: {
+        trigger: triggerRef.current,
+        start: "top top",
+        end: "bottom top",
+        scrub: true,
+      }
+    });
+
+    gsap.to(".hero-img-3", {
+      y: -20,
+      scrollTrigger: {
+        trigger: triggerRef.current,
+        start: "top top",
+        end: "bottom top",
+        scrub: true,
+      }
+    });
+
+    // Shrink scroll animation
+    gsap.fromTo(
+      containerRef.current,
+      {
+        scale: 1,
+        borderRadius: "0px",
+        opacity: 1,
+      },
+      {
+        scale: 0.92,
+        borderRadius: "40px",
+        opacity: 0.9,
+        ease: "none",
+        scrollTrigger: {
+          trigger: triggerRef.current,
+          start: "top top",
+          end: "bottom bottom",
+          scrub: true,
+        }
+      }
+    );
+  }, { scope: triggerRef });
+
   return (
-    <section className={cn('w-full overflow-hidden bg-background py-12 sm:py-24', className)}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-8">
-        {/* Left Column: Text Content */}
-        <motion.div
-          className="flex flex-col items-center text-center lg:items-start lg:text-left"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
+    <div ref={triggerRef} className="relative w-full h-[125vh] lg:h-[135vh] bg-stone-950 overflow-hidden">
+      <div className="sticky top-20 w-full min-h-[calc(100vh-5rem)] lg:h-[calc(100vh-5rem)] z-10">
+        <section
+          ref={containerRef}
+          className={cn('w-full h-full overflow-hidden bg-background flex items-center py-12 lg:py-0 border-x border-b border-stone-800/10 shadow-lg', className)}
         >
-          <motion.h1
-            className="font-serif text-4xl font-bold tracking-tight text-foreground sm:text-6xl leading-tight"
-            variants={itemVariants}
-          >
-            {title}
-          </motion.h1>
-          <motion.p className="mt-6 max-w-xl text-lg text-stone-600 leading-relaxed font-sans" variants={itemVariants}>
-            {subtitle}
-          </motion.p>
-          <motion.div className="mt-8 flex flex-wrap justify-center gap-4 lg:justify-start" variants={itemVariants}>
-            {actions.map((action, index) => (
-              <Button key={index} onClick={action.onClick} variant={action.variant} size="lg" className={action.className}>
-                {action.text}
-              </Button>
-            ))}
-          </motion.div>
-          <motion.div className="mt-12 flex flex-wrap justify-center gap-8 lg:justify-start" variants={itemVariants}>
-            {stats.map((stat, index) => (
-              <div key={index} className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-exotic-purple/10 text-exotic-purple">{stat.icon}</div>
-                <div>
-                  <p className="text-xl font-bold text-stone-900">{stat.value}</p>
-                  <p className="text-xs text-stone-500 uppercase font-semibold tracking-wide">{stat.label}</p>
-                </div>
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-8 w-full">
+            {/* Left Column: Text Content */}
+            <div className="flex flex-col items-center text-center lg:items-start lg:text-left">
+              <h1 className="hero-title font-serif text-4xl font-bold tracking-tight text-foreground sm:text-6xl leading-tight">
+                {title}
+              </h1>
+              <p className="hero-subtitle mt-6 max-w-xl text-lg text-stone-600 leading-relaxed font-sans">
+                {subtitle}
+              </p>
+              <div className="mt-8 flex flex-wrap justify-center gap-4 lg:justify-start">
+                {actions.map((action, index) => (
+                  <Button key={index} onClick={action.onClick} variant={action.variant} size="lg" className={cn(action.className, "hero-action-btn")}>
+                    {action.text}
+                  </Button>
+                ))}
               </div>
-            ))}
-          </motion.div>
-        </motion.div>
-
-        {/* Right Column: Image Collage */}
-        <motion.div
-          className="relative h-[400px] w-full sm:h-[500px]"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
-          {/* Decorative Shapes */}
-          <motion.div
-            className="absolute -top-4 left-1/4 h-16 w-16 rounded-full bg-exotic-purple/10 border border-exotic-purple/20 blur-sm pointer-events-none"
-            variants={floatingVariants}
-            animate="animate"
-          />
-          <motion.div
-            className="absolute bottom-0 right-1/4 h-12 w-12 rounded-lg bg-rose-gold/20 border border-rose-gold/30 pointer-events-none"
-            variants={floatingVariants}
-            animate="animate"
-            style={{ transitionDelay: '0.5s' }}
-          />
-          <motion.div
-            className="absolute bottom-1/4 left-4 h-6 w-6 rounded-full bg-exotic-purple-light/40 border border-exotic-purple/10 pointer-events-none"
-            variants={floatingVariants}
-            animate="animate"
-            style={{ transitionDelay: '1s' }}
-          />
-
-          {/* Images */}
-          <motion.div
-            className="absolute left-1/2 top-0 h-48 w-48 -translate-x-1/2 rounded-2xl bg-white p-2 shadow-xl sm:h-64 sm:w-64 border border-stone-200/50 hover:shadow-exotic-purple/10 transition-shadow duration-300"
-            style={{ transformOrigin: 'bottom center' }}
-            variants={imageVariants}
-          >
-            <img src={images[0]} alt="LKP Exotic Salon Class" className="h-full w-full rounded-xl object-cover" />
-          </motion.div>
-          <motion.div
-            className="absolute right-0 top-1/3 h-40 w-40 rounded-2xl bg-white p-2 shadow-xl sm:h-56 sm:w-56 border border-stone-200/50 hover:shadow-exotic-purple/10 transition-shadow duration-300"
-            style={{ transformOrigin: 'left center' }}
-            variants={imageVariants}
-          >
-            <img src={images[1]} alt="Hair Extension Practice" className="h-full w-full rounded-xl object-cover" />
-          </motion.div>
-          <motion.div
-            className="absolute bottom-0 left-0 h-32 w-32 rounded-2xl bg-white p-2 shadow-xl sm:h-48 sm:w-48 border border-stone-200/50 hover:shadow-exotic-purple/10 transition-shadow duration-300"
-            style={{ transformOrigin: 'top right' }}
-            variants={imageVariants}
-          >
-            <img src={images[2]} alt="MUA Practice" className="h-full w-full rounded-xl object-cover" />
-          </motion.div>
-
-          {/* Floating registration status badge overlaid */}
-          <motion.div
-            className="absolute bottom-8 right-4 glass p-3.5 rounded-xl shadow-lg border border-[#C5A880]/20 flex items-center justify-between gap-3 pointer-events-none z-20"
-            variants={itemVariants}
-          >
-            <div>
-              <p className="text-[9px] uppercase font-bold text-exotic-purple tracking-widest leading-none">
-                Pendaftaran
-              </p>
-              <p className="text-stone-900 font-bold text-xs mt-1">
-                Gelombang I Dibuka
-              </p>
+              <div className="mt-12 flex flex-wrap justify-center gap-8 lg:justify-start">
+                {stats.map((stat, index) => (
+                  <div key={index} className="hero-stat-item flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-exotic-purple/10 text-exotic-purple">{stat.icon}</div>
+                    <div>
+                      <p className="text-xl font-bold text-stone-900">{stat.value}</p>
+                      <p className="text-xs text-stone-500 uppercase font-semibold tracking-wide">{stat.label}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-            <span className="flex h-2.5 w-2.5 relative">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
-            </span>
-          </motion.div>
 
-        </motion.div>
+            {/* Right Column: Image Collage */}
+            <div className="relative h-[380px] w-full sm:h-[450px] lg:h-[500px]">
+              {/* Decorative Shapes */}
+              <div className="hero-shape-1 absolute -top-4 left-1/4 h-16 w-16 rounded-full bg-exotic-purple/10 border border-exotic-purple/20 blur-sm pointer-events-none" />
+              <div className="hero-shape-2 absolute bottom-0 right-1/4 h-12 w-12 rounded-lg bg-rose-gold/20 border border-rose-gold/30 pointer-events-none" />
+              <div className="hero-shape-3 absolute bottom-1/4 left-4 h-6 w-6 rounded-full bg-exotic-purple-light/40 border border-exotic-purple/10 pointer-events-none" />
+
+              {/* Images */}
+              <div
+                className="hero-collage-img-wrapper hero-img-1 absolute left-1/2 top-0 h-44 w-44 -translate-x-1/2 rounded-2xl bg-white p-2 shadow-xl sm:h-56 sm:w-56 lg:h-64 lg:w-64 border border-stone-200/50 hover:shadow-exotic-purple/10 transition-shadow duration-300"
+                style={{ transformOrigin: 'bottom center' }}
+              >
+                <img src={collageImages[0]} alt="LKP Exotic Salon Class" className="h-full w-full rounded-xl object-cover" />
+              </div>
+              <div
+                className="hero-collage-img-wrapper hero-img-2 absolute right-0 top-1/3 h-36 w-36 rounded-2xl bg-white p-2 shadow-xl sm:h-48 sm:w-48 lg:h-56 lg:w-56 border border-stone-200/50 hover:shadow-exotic-purple/10 transition-shadow duration-300"
+                style={{ transformOrigin: 'left center' }}
+              >
+                <img src={collageImages[1]} alt="Hair Extension Practice" className="h-full w-full rounded-xl object-cover" />
+              </div>
+              <div
+                className="hero-collage-img-wrapper hero-img-3 absolute bottom-0 left-0 h-28 w-28 rounded-2xl bg-white p-2 shadow-xl sm:h-40 sm:w-40 lg:h-48 lg:w-48 border border-stone-200/50 hover:shadow-exotic-purple/10 transition-shadow duration-300"
+                style={{ transformOrigin: 'top right' }}
+              >
+                <img src={collageImages[2]} alt="MUA Practice" className="h-full w-full rounded-xl object-cover" />
+              </div>
+
+              {/* Floating registration status badge overlaid */}
+              <div className="hero-badge absolute bottom-8 right-4 glass p-3.5 rounded-xl shadow-lg border border-[#C5A880]/20 flex items-center justify-between gap-3 pointer-events-none z-20">
+                <div>
+                  <p className="text-[9px] uppercase font-bold text-exotic-purple tracking-widest leading-none">
+                    Pendaftaran
+                  </p>
+                  <p className="text-stone-900 font-bold text-xs mt-1">
+                    Gelombang I Dibuka
+                  </p>
+                </div>
+                <span className="flex h-2.5 w-2.5 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
-    </section>
+    </div>
+  );
+};
+
+// Dedicated Cinematic Logo Intro Hero Section
+const LogoIntroHero = () => {
+  const triggerRef = useRef(null);
+  const logoRef = useRef(null);
+  const backgroundRef = useRef(null);
+
+  useGSAP(() => {
+    // 1. Entrance animation on page load
+    const tlEntrance = gsap.timeline();
+    
+    // Entrance for the E-card (slide in, rotate, scale up)
+    tlEntrance.fromTo(
+      ".intro-e-card",
+      { scale: 0, rotation: -180, opacity: 0 },
+      { scale: 1, rotation: 0, opacity: 1, duration: 1.4, ease: "back.out(1.5)" }
+    );
+    
+    // Entrance for the letter "E" inside the card
+    tlEntrance.fromTo(
+      ".intro-e-letter",
+      { scale: 0.3, opacity: 0 },
+      { scale: 1, opacity: 1, duration: 0.8, ease: "power4.out" },
+      "-=0.8"
+    );
+
+    // Entrance for text "LKP EXOTIC" and "SOLO BARU"
+    tlEntrance.fromTo(
+      ".intro-text-brand",
+      { x: -40, opacity: 0 },
+      { x: 0, opacity: 1, duration: 1.0, ease: "power3.out" },
+      "-=0.6"
+    );
+    tlEntrance.fromTo(
+      ".intro-text-subtitle",
+      { y: 20, opacity: 0 },
+      { y: 0, opacity: 1, duration: 1.0, ease: "power3.out" },
+      "-=0.8"
+    );
+    tlEntrance.fromTo(
+      ".intro-scroll-indicator",
+      { y: 15, opacity: 0 },
+      { y: 0, opacity: 1, duration: 0.8, ease: "power2.out" },
+      "-=0.4"
+    );
+
+    // 2. Continuous floating loops (logo elements + background glows)
+    // Gentle floating of the entire logo container
+    gsap.to(logoRef.current, {
+      y: -8,
+      duration: 3.5,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut"
+    });
+    
+    // Gentle breathing glow for the E-card border
+    gsap.to(".intro-e-card", {
+      borderColor: "rgba(123, 44, 191, 0.6)",
+      boxShadow: "0 0 35px rgba(123, 44, 191, 0.45), 0 0 20px rgba(197, 168, 128, 0.25)",
+      duration: 3,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut"
+    });
+
+    // Slow shifting background glows
+    gsap.to(".intro-glow-1", {
+      x: 60,
+      y: -40,
+      scale: 1.15,
+      duration: 10,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut"
+    });
+    gsap.to(".intro-glow-2", {
+      x: -50,
+      y: 50,
+      scale: 1.25,
+      duration: 12,
+      repeat: -1,
+      yoyo: true,
+      ease: "sine.inOut"
+    });
+
+    // 3. ScrollTrigger to scale down and fade out
+    const tlScroll = gsap.timeline({
+      scrollTrigger: {
+        trigger: triggerRef.current,
+        start: "top top",
+        end: "+=100%", // Scroll length is exactly 1 viewport height
+        scrub: true,
+        pin: true,
+        pinSpacing: false, // Page content slides up over it
+      }
+    });
+
+    tlScroll.to(logoRef.current, {
+      scale: 0.7,
+      opacity: 0,
+      y: -80,
+      ease: "power2.inOut"
+    })
+    .to(backgroundRef.current, {
+      opacity: 0,
+      ease: "power2.inOut"
+    }, 0)
+    .to(triggerRef.current, {
+      autoAlpha: 0,
+      ease: "none"
+    });
+
+  }, { scope: triggerRef });
+
+  return (
+    <div
+      ref={triggerRef}
+      className="relative w-full h-[100dvh] bg-stone-950 overflow-hidden z-50 flex flex-col items-center justify-center border-b border-stone-900"
+    >
+      {/* Ambient Background Glows */}
+      <div ref={backgroundRef} className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="intro-glow-1 absolute -top-1/3 -left-1/3 w-[150%] h-[150%] rounded-full bg-[radial-gradient(circle,rgba(123,44,191,0.18)_0%,transparent_60%)]" />
+        <div className="intro-glow-2 absolute -bottom-1/3 -right-1/3 w-[150%] h-[150%] rounded-full bg-[radial-gradient(circle,rgba(197,168,128,0.12)_0%,transparent_60%)]" />
+      </div>
+
+      {/* Centered Logo & Brand Content */}
+      <div ref={logoRef} className="flex flex-col sm:flex-row items-center gap-6 sm:gap-10 z-10 px-6">
+        {/* Squircle Card */}
+        <div className="intro-e-card w-28 h-28 sm:w-36 sm:h-36 rounded-[2rem] bg-stone-900 border border-stone-800/80 flex items-center justify-center shadow-[0_0_20px_rgba(123,44,191,0.25)] transition-all duration-300">
+          <span className="intro-e-letter font-serif font-bold text-exotic-purple text-6xl sm:text-7xl select-none">
+            E
+          </span>
+        </div>
+
+        {/* Brand Text */}
+        <div className="flex flex-col text-center sm:text-left">
+          <h1 className="intro-text-brand font-serif font-bold text-white text-4xl sm:text-5xl md:text-6xl tracking-wide">
+            LKP <span className="text-exotic-purple">EXOTIC</span>
+          </h1>
+          <span className="intro-text-subtitle text-xs sm:text-sm uppercase font-bold text-[#C5A880] tracking-[0.35em] sm:tracking-[0.45em] mt-3 sm:mt-4 leading-none block">
+            Solo Baru
+          </span>
+        </div>
+      </div>
+
+      {/* Scroll Indicator */}
+      <div className="intro-scroll-indicator absolute bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2.5 z-10 pointer-events-none">
+        <span className="text-[9px] uppercase font-bold text-stone-500 tracking-[0.25em] select-none">
+          Scroll Down
+        </span>
+        <div className="w-6 h-10 rounded-full border border-stone-850 flex justify-center p-1.5 bg-stone-950/40 backdrop-blur-sm shadow-inner">
+          <div className="w-1.5 h-1.5 rounded-full bg-[#C5A880] animate-bounce" />
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -509,6 +827,7 @@ export default function Home() {
 
   return (
     <div className="flex-1 w-full flex flex-col font-sans bg-gradient-to-tr from-[#FAF8F5] via-[#FAF8F5] to-[#F5EEFD]">
+      <LogoIntroHero />
 
       {/* Toast Notification for Save Action */}
       <div
@@ -1282,28 +1601,11 @@ export default function Home() {
               const isOpen = openFaqIndex === idx;
               return (
                 <Reveal key={idx} delay={idx * 50} className="w-full">
-                  <div
-                    className="bg-white rounded-xl border border-stone-200 overflow-hidden transition-all duration-300 hover:border-exotic-purple/20"
-                  >
-                    <button
-                      onClick={() => toggleFaq(idx)}
-                      className="w-full p-6 text-left flex items-center justify-between gap-4 font-semibold text-stone-900 hover:text-exotic-purple text-sm sm:text-base cursor-pointer hover:bg-exotic-purple/5 transition-all duration-200"
-                    >
-                      <span>{faq.q}</span>
-                      <span className={`flex-shrink-0 w-6 h-6 rounded-full border border-stone-300 flex items-center justify-center text-exotic-purple transition-transform duration-300 ${isOpen ? "rotate-180 bg-exotic-purple-light/40 border-exotic-purple/20" : ""}`}>
-                        ▼
-                      </span>
-                    </button>
-
-                    <div
-                      className={`transition-all duration-300 ease-in-out ${isOpen ? "max-h-60 border-t border-stone-100 p-6" : "max-h-0 opacity-0 pointer-events-none"
-                        }`}
-                    >
-                      <p className="text-stone-600 text-xs sm:text-sm leading-relaxed">
-                        {renderTextWithExotic(faq.a)}
-                      </p>
-                    </div>
-                  </div>
+                  <FaqItem
+                    faq={faq}
+                    isOpen={isOpen}
+                    onToggle={() => toggleFaq(idx)}
+                  />
                 </Reveal>
               );
             })}
