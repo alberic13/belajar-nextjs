@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
+import { motion, useMotionValue, useTransform, useMotionTemplate } from "framer-motion";
+import * as THREE from "three";
 
 if (typeof window !== "undefined") {
   gsap.registerPlugin(ScrollTrigger);
@@ -133,6 +135,412 @@ const Button = ({ children, onClick, variant, size, className, ...props }) => {
     >
       {children}
     </button>
+  );
+};
+
+// 3D Holographic Card component using Framer Motion
+const HolographicCard = ({ children, className = "" }) => {
+  const cardRef = useRef(null);
+
+  // Motion values for tracking cursor coordinates relative to the card dimensions
+  const x = useMotionValue(0.5);
+  const y = useMotionValue(0.5);
+
+  // Map relative position to rotation degrees (tilt effect)
+  const rotateX = useTransform(y, [0, 1], [8, -8]);
+  const rotateY = useTransform(x, [0, 1], [-8, 8]);
+
+  // Handle cursor moves over the card
+  const handleMouseMove = (event) => {
+    if (!cardRef.current) return;
+    const rect = cardRef.current.getBoundingClientRect();
+    const width = rect.width;
+    const height = rect.height;
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+    x.set(mouseX / width);
+    y.set(mouseY / height);
+  };
+
+  // Reset rotation when cursor leaves the card
+  const handleMouseLeave = () => {
+    x.set(0.5);
+    y.set(0.5);
+  };
+
+  // Holographic glare and reflection properties
+  const glareX = useTransform(x, [0, 1], ["0%", "100%"]);
+  const glareY = useTransform(y, [0, 1], ["0%", "100%"]);
+  const glareBackground = useMotionTemplate`
+    radial-gradient(circle 350px at ${glareX} ${glareY}, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 80%),
+    linear-gradient(${useTransform(x, [0, 1], [0, 360])}deg, rgba(255, 0, 128, 0.08) 0%, rgba(123, 44, 191, 0.12) 50%, rgba(0, 255, 255, 0.08) 100%)
+  `;
+
+  return (
+    <div className="perspective-1200 w-full flex">
+      <motion.div
+        ref={cardRef}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        style={{
+          rotateX,
+          rotateY,
+          transformStyle: "preserve-3d",
+        }}
+        className={cn(
+          "relative bg-white rounded-3xl overflow-hidden shadow-md hover:shadow-2xl hover:shadow-exotic-purple/10 border border-stone-200/60 hover:border-exotic-purple/20 transition-all duration-500 flex flex-col group w-full",
+          className
+        )}
+      >
+        {/* Holographic Dynamic Glare Overlay */}
+        <motion.div
+          style={{
+            background: glareBackground,
+          }}
+          className="absolute inset-0 pointer-events-none z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 mix-blend-color-dodge"
+        />
+
+        {/* Dynamic Light Foil Highlights (Subtle VIP gold outline) */}
+        <div
+          style={{ transform: "translateZ(15px)" }}
+          className="absolute inset-0 border border-transparent group-hover:border-[#C5A880]/30 rounded-3xl pointer-events-none z-40 transition-colors duration-500"
+        />
+
+        {/* Card content with inner 3D depth */}
+        <div className="flex flex-col flex-1" style={{ transform: "translateZ(10px)", transformStyle: "preserve-3d" }}>
+          {children}
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+// 3D Interactive Course Carousel using Three.js
+const ThreeCourseCarousel = ({ courses, activeIndex, onActiveIndexChange }) => {
+  const containerRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    let scene, camera, renderer;
+    let carouselGroup;
+    let particleSystem;
+    let pointsLight;
+    let isDragging = false;
+    let startX = 0;
+    let targetRotationY = 0;
+    let currentRotationY = 0;
+    let animationFrameId;
+    let width = containerRef.current.clientWidth;
+    let height = containerRef.current.clientHeight || 520;
+
+    // 1. Initialize Scene & Camera
+    scene = new THREE.Scene();
+    
+    camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
+    camera.position.set(0, 0.4, 7.5);
+
+    // 2. Initialize Renderer
+    renderer = new THREE.WebGLRenderer({
+      canvas: canvasRef.current,
+      antialias: true,
+      alpha: true,
+      powerPreference: "high-performance"
+    });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    // 3. Add Ambient & Spot Lights
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    scene.add(ambientLight);
+
+    // Purple point light that responds to mouse
+    pointsLight = new THREE.PointLight(0x7b2cbf, 3, 25);
+    pointsLight.position.set(0, 3, 5);
+    scene.add(pointsLight);
+
+    // Gold decorative backlight
+    const goldLight = new THREE.PointLight(0xc5a880, 2, 20);
+    goldLight.position.set(0, -3, -3);
+    scene.add(goldLight);
+
+    // 4. Create Carousel Group
+    carouselGroup = new THREE.Group();
+    scene.add(carouselGroup);
+
+    const count = courses.length;
+    const radius = 3.8;
+    const angleStep = (2 * Math.PI) / count;
+    const textureLoader = new THREE.TextureLoader();
+    const panels = [];
+
+    // Create cards
+    courses.forEach((course, idx) => {
+      // Card Group to hold front and back frame
+      const cardGroup = new THREE.Group();
+
+      // Front Image texture loading
+      const texture = textureLoader.load(course.image, () => {
+        if (idx === count - 1) {
+          setLoading(false); // set loading false when textures loaded
+        }
+      });
+
+      // Front plate (Image)
+      const imageGeo = new THREE.PlaneGeometry(3.2, 1.8);
+      const imageMat = new THREE.MeshStandardMaterial({
+        map: texture,
+        side: THREE.DoubleSide,
+        roughness: 0.3,
+        metalness: 0.1,
+      });
+      const imageMesh = new THREE.Mesh(imageGeo, imageMat);
+      imageMesh.position.z = 0.02; // sit slightly in front
+      cardGroup.add(imageMesh);
+
+      // Back plate (Frame)
+      const frameGeo = new THREE.PlaneGeometry(3.3, 1.9);
+      const frameMat = new THREE.MeshStandardMaterial({
+        color: 0x1a1a1a,
+        roughness: 0.1,
+        metalness: 0.8,
+        side: THREE.DoubleSide
+      });
+      const frameMesh = new THREE.Mesh(frameGeo, frameMat);
+      cardGroup.add(frameMesh);
+
+      // Inner Border Line (Gold VIP Trim)
+      const borderGeo = new THREE.PlaneGeometry(3.24, 1.84);
+      const borderMat = new THREE.MeshBasicMaterial({
+        color: 0xc5a880,
+        wireframe: true,
+        side: THREE.DoubleSide
+      });
+      const borderMesh = new THREE.Mesh(borderGeo, borderMat);
+      borderMesh.position.z = 0.01;
+      cardGroup.add(borderMesh);
+
+      // Position on cylinder circle
+      const angle = idx * angleStep;
+      cardGroup.position.x = Math.sin(angle) * radius;
+      cardGroup.position.z = Math.cos(angle) * radius;
+      
+      // Face outward relative to center
+      cardGroup.rotation.y = angle;
+
+      cardGroup.userData = { index: idx, angle: angle };
+      carouselGroup.add(cardGroup);
+      panels.push(cardGroup);
+    });
+
+    // 5. Add Particle Stream Background
+    const particleCount = 120;
+    const particleGeo = new THREE.BufferGeometry();
+    const particlePositions = new Float32Array(particleCount * 3);
+
+    for (let i = 0; i < particleCount * 3; i += 3) {
+      particlePositions[i] = (Math.random() - 0.5) * 12; // x
+      particlePositions[i + 1] = (Math.random() - 0.5) * 6; // y
+      particlePositions[i + 2] = (Math.random() - 0.5) * 10; // z
+    }
+
+    particleGeo.setAttribute("position", new THREE.BufferAttribute(particlePositions, 3));
+    const particleMat = new THREE.PointsMaterial({
+      color: 0x7b2cbf,
+      size: 0.06,
+      transparent: true,
+      opacity: 0.4,
+    });
+    particleSystem = new THREE.Points(particleGeo, particleMat);
+    scene.add(particleSystem);
+
+    // 6. Interaction Handlers
+    const getClientX = (e) => {
+      return e.touches ? e.touches[0].clientX : e.clientX;
+    };
+
+    const handlePointerDown = (e) => {
+      isDragging = true;
+      startX = getClientX(e);
+    };
+
+    const handlePointerMove = (e) => {
+      if (!isDragging) return;
+      const currentX = getClientX(e);
+      const deltaX = currentX - startX;
+      // Adjust sensitivity
+      targetRotationY += deltaX * 0.006;
+      startX = currentX;
+    };
+
+    const handlePointerUp = (e) => {
+      isDragging = false;
+      snapToClosest();
+    };
+
+    const snapToClosest = () => {
+      const step = angleStep;
+      const rawSteps = -targetRotationY / step;
+      const roundedSteps = Math.round(rawSteps);
+      targetRotationY = -roundedSteps * step;
+      
+      const positiveIndex = ((roundedSteps % count) + count) % count;
+      onActiveIndexChange(positiveIndex);
+    };
+
+    const handleMouseLeave = () => {
+      if (isDragging) {
+        isDragging = false;
+        snapToClosest();
+      }
+    };
+
+    // Listeners
+    const el = containerRef.current;
+    el.addEventListener("mousedown", handlePointerDown);
+    el.addEventListener("mousemove", handlePointerMove);
+    window.addEventListener("mouseup", handlePointerUp);
+    el.addEventListener("mouseleave", handleMouseLeave);
+
+    el.addEventListener("touchstart", handlePointerDown, { passive: true });
+    el.addEventListener("touchmove", handlePointerMove, { passive: true });
+    window.addEventListener("touchend", handlePointerUp);
+
+    // Raycast click to select
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    const handleClick = (e) => {
+      if (e.changedTouches && e.changedTouches.length === 0) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+      const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+      
+      mouse.x = ((clientX - rect.left) / width) * 2 - 1;
+      mouse.y = -((clientY - rect.top) / height) * 2 + 1;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(carouselGroup.children, true);
+
+      if (intersects.length > 0) {
+        let obj = intersects[0].object;
+        while (obj.parent && obj.parent !== carouselGroup) {
+          obj = obj.parent;
+        }
+        const clickedIdx = obj.userData.index;
+        
+        const currentRot = targetRotationY;
+        const targetAngle = -clickedIdx * angleStep;
+        
+        const diff = ((targetAngle - currentRot + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+        targetRotationY = currentRot + diff;
+        
+        onActiveIndexChange(clickedIdx);
+      }
+    };
+
+    el.addEventListener("click", handleClick);
+
+    // Track mouse coordinates for lighting effects
+    const handleGlobalMouseMove = (e) => {
+      const rect = renderer.domElement.getBoundingClientRect();
+      const mouseX = ((e.clientX - rect.left) / width) * 2 - 1;
+      const mouseY = -((e.clientY - rect.top) / height) * 2 + 1;
+      pointsLight.position.x = mouseX * 4;
+      pointsLight.position.y = mouseY * 3;
+    };
+    el.addEventListener("mousemove", handleGlobalMouseMove);
+
+    // Track React state changes to spin automatically when clicked from outside
+    const syncRotationWithActiveIndex = () => {
+      const targetAngle = -activeIndex * angleStep;
+      const currentRot = targetRotationY;
+      const diff = ((targetAngle - currentRot + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+      targetRotationY = currentRot + diff;
+    };
+    syncRotationWithActiveIndex();
+
+    // Resize Handler
+    const handleResize = () => {
+      if (!containerRef.current) return;
+      width = containerRef.current.clientWidth;
+      height = containerRef.current.clientHeight || 520;
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+      renderer.setSize(width, height);
+    };
+    window.addEventListener("resize", handleResize);
+
+    // Animation Loop
+    const animate = () => {
+      animationFrameId = requestAnimationFrame(animate);
+
+      currentRotationY += (targetRotationY - currentRotationY) * 0.08;
+      carouselGroup.rotation.y = currentRotationY;
+
+      if (!isDragging) {
+        targetRotationY += 0.0004;
+      }
+
+      if (particleSystem) {
+        particleSystem.rotation.y += 0.0006;
+        particleSystem.rotation.x += 0.0002;
+      }
+
+      panels.forEach((panel) => {
+        const tempV = new THREE.Vector3();
+        panel.getWorldPosition(tempV);
+        const dist = tempV.distanceTo(camera.position);
+        
+        const scaleVal = THREE.MathUtils.mapLinear(dist, 3.5, 11.5, 1.0, 0.72);
+        panel.scale.set(scaleVal, scaleVal, scaleVal);
+        
+        panel.children.forEach(mesh => {
+          if (mesh.material && mesh.material.opacity !== undefined) {
+            const opacityVal = THREE.MathUtils.mapLinear(dist, 3.5, 11.5, 1.0, 0.35);
+            mesh.material.opacity = opacityVal;
+            mesh.material.transparent = true;
+          }
+        });
+      });
+
+      renderer.render(scene, camera);
+    };
+
+    animate();
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      window.removeEventListener("resize", handleResize);
+      el.removeEventListener("mousedown", handlePointerDown);
+      el.removeEventListener("mousemove", handlePointerMove);
+      window.removeEventListener("mouseup", handlePointerUp);
+      el.removeEventListener("mouseleave", handleMouseLeave);
+      el.removeEventListener("click", handleClick);
+      el.removeEventListener("mousemove", handleGlobalMouseMove);
+      
+      el.removeEventListener("touchstart", handlePointerDown);
+      el.removeEventListener("touchmove", handlePointerMove);
+      window.removeEventListener("touchend", handlePointerUp);
+
+      renderer.dispose();
+    };
+  }, [activeIndex]);
+
+  return (
+    <div ref={containerRef} className="canvas-container cursor-grab active:cursor-grabbing">
+      {loading && (
+        <div className="canvas-loading">
+          <div className="canvas-loading-spinner" />
+          <span className="text-xs uppercase font-bold tracking-widest text-[#C5A880] animate-pulse">
+            Memuat Studio 3D...
+          </span>
+        </div>
+      )}
+      <canvas ref={canvasRef} className="w-full h-full block" />
+    </div>
   );
 };
 
@@ -611,6 +1019,10 @@ const LogoIntroHero = () => {
 export default function Home() {
   // State for Course Quiz
   const [quizStep, setQuizStep] = useState(0); // 0: intro, 1: goal, 2: field, 3: commitment, 4: result
+  
+  // State for 3D Course Carousel View
+  const [coursesViewMode, setCoursesViewMode] = useState("grid"); // "grid" or "3d"
+  const [activeCourse3d, setActiveCourse3d] = useState(0);
   const [quizAnswers, setQuizAnswers] = useState({
     goal: "",
     field: "",
@@ -1155,98 +1567,207 @@ export default function Home() {
             </div>
           </Reveal>
 
-          {/* Courses Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {courses.map((course, idx) => (
-              <Reveal key={idx} delay={idx * 150} className="flex">
-                <div
-                  className="bg-white rounded-3xl overflow-hidden shadow-md hover:shadow-2xl hover:shadow-exotic-purple/10 border border-stone-200/60 hover:border-exotic-purple/20 transition-all duration-500 flex flex-col group hover:-translate-y-2 transform w-full"
-                >
+          {/* View Toggle Tabs */}
+          <div className="flex justify-center mb-12">
+            <div className="inline-flex rounded-full bg-stone-100 p-1 border border-stone-200 shadow-inner">
+              <button
+                onClick={() => setCoursesViewMode("grid")}
+                className={cn(
+                  "px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer",
+                  coursesViewMode === "grid"
+                    ? "bg-stone-950 text-white shadow-md"
+                    : "text-stone-500 hover:text-stone-900"
+                )}
+              >
+                Grid View
+              </button>
+              <button
+                onClick={() => setCoursesViewMode("3d")}
+                className={cn(
+                  "px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-1.5",
+                  coursesViewMode === "3d"
+                    ? "bg-exotic-purple text-white shadow-md"
+                    : "text-stone-500 hover:text-stone-900"
+                )}
+              >
+                <span>3D Virtual Studio</span>
+                <span className="px-1.5 py-0.5 rounded-full bg-exotic-purple-light/20 text-exotic-purple-light text-[9px] font-bold tracking-normal leading-none animate-pulse">
+                  NEW
+                </span>
+              </button>
+            </div>
+          </div>
 
-                  {/* Course Card Cover */}
-                  <div className="relative aspect-[16/9] overflow-hidden bg-stone-100">
-                    <img
-                      src={course.image}
-                      alt={course.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+          {coursesViewMode === "3d" ? (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center animate-fade-in-up">
+              {/* Left Column: 3D Canvas Carousel */}
+              <div className="lg:col-span-7 w-full flex flex-col space-y-4">
+                <ThreeCourseCarousel
+                  courses={courses}
+                  activeIndex={activeCourse3d}
+                  onActiveIndexChange={setActiveCourse3d}
+                />
+                <div className="text-center text-xs text-stone-500 font-sans italic flex items-center justify-center gap-2 select-none">
+                  <span>↔</span>
+                  <span>Klik & geser untuk memutar korsel 3D, atau klik kartu untuk memilih</span>
+                </div>
+              </div>
 
-                    {/* Tag badge */}
-                    <span className="absolute top-4 left-4 inline-flex px-3 py-1 bg-stone-950 text-exotic-purple-light text-[10px] font-bold uppercase tracking-widest rounded-full shadow-sm">
-                      {course.tag}
-                    </span>
+              {/* Right Column: Active Course Info Panel (Glassmorphism card) */}
+              <div className="lg:col-span-5 w-full">
+                <div className="bg-white/80 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-stone-200/80 shadow-xl min-h-[520px] flex flex-col justify-between space-y-6 hover:shadow-exotic-purple/5 transition-all duration-300">
+                  <div className="space-y-5">
+                    {/* Badge and Title */}
+                    <div className="space-y-2">
+                      <span className="inline-flex px-3 py-1 bg-stone-950 text-exotic-purple-light text-[10px] font-bold uppercase tracking-widest rounded-full shadow-sm">
+                        {courses[activeCourse3d].tag}
+                      </span>
+                      <h3 className="text-stone-950 font-serif text-2xl sm:text-3xl font-bold leading-tight">
+                        {courses[activeCourse3d].title}
+                      </h3>
+                    </div>
 
-                    {/* Program title overlaid in cover */}
-                    <h3 className="absolute bottom-4 left-4 right-4 text-white font-serif text-xl sm:text-2xl font-semibold leading-snug drop-shadow-md">
-                      {course.title}
-                    </h3>
+                    {/* Tags */}
+                    <div className="flex flex-wrap items-center gap-3 text-xs">
+                      <span className="inline-flex items-center gap-1.5 font-bold text-exotic-purple bg-exotic-purple-light/40 px-2.5 py-1 rounded-md">
+                        {courses[activeCourse3d].duration}
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 font-bold text-stone-700 bg-stone-100 px-2.5 py-1 rounded-md">
+                        {courses[activeCourse3d].cert}
+                      </span>
+                    </div>
+
+                    <p className="text-stone-600 text-sm leading-relaxed">
+                      {courses[activeCourse3d].desc}
+                    </p>
+
+                    {/* Highlights bullet list */}
+                    <div className="space-y-2 pt-2">
+                      <p className="text-xs font-bold text-stone-900 uppercase tracking-wider">Materi Utama:</p>
+                      <ul className="grid grid-cols-1 gap-2">
+                        {courses[activeCourse3d].highlights.map((highlight, hIdx) => (
+                          <li key={hIdx} className="flex items-start gap-2.5 text-xs text-stone-600">
+                            <span className="flex-shrink-0 w-4 h-4 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mt-0.5">
+                              ✓
+                            </span>
+                            <span>{highlight}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
                   </div>
 
-                  {/* Course Details Body */}
-                  <div className="p-6 sm:p-8 flex-1 flex flex-col justify-between space-y-6">
-                    <div className="space-y-4">
-
-                      {/* Duration / Certificate Tags */}
-                      <div className="flex flex-wrap items-center gap-3 text-xs">
-                        <span className="inline-flex items-center gap-1.5 font-bold text-exotic-purple bg-exotic-purple-light/40 px-2.5 py-1 rounded-md">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          {course.duration}
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 font-bold text-stone-700 bg-stone-100 px-2.5 py-1 rounded-md">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-stone-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                          </svg>
-                          {course.cert}
-                        </span>
-                      </div>
-
-                      <p className="text-stone-600 text-sm leading-relaxed">
-                        {course.desc}
-                      </p>
-
-                      {/* Highlights bullet list */}
-                      <div className="space-y-2 pt-2">
-                        <p className="text-xs font-bold text-stone-900 uppercase tracking-wider">Materi Utama:</p>
-                        <ul className="grid grid-cols-1 gap-2">
-                          {course.highlights.map((highlight, hIdx) => (
-                            <li key={hIdx} className="flex items-start gap-2.5 text-xs text-stone-600">
-                              <span className="flex-shrink-0 w-4 h-4 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mt-0.5">
-                                ✓
-                              </span>
-                              <span>{highlight}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-
+                  {/* Pricing / Booking button */}
+                  <div className="pt-6 border-t border-stone-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                    <div>
+                      <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider">Biaya Kursus</p>
+                      <p className="text-stone-900 font-bold text-sm mt-0.5">{courses[activeCourse3d].price}</p>
                     </div>
 
-                    {/* Pricing / Booking button */}
-                    <div className="pt-6 border-t border-stone-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-                      <div>
-                        <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider">Biaya Kursus</p>
-                        <p className="text-stone-900 font-bold text-sm mt-0.5">{course.price}</p>
-                      </div>
-
-                      <a
-                        href={`https://wa.me/6282147630666?text=Halo%20LKP%20Exotic%20Solo%20Baru%2C%20saya%20tertarik%20mendaftar%20atau%20tanya%20detail%20mengenai%20program%3A%20${encodeURIComponent(course.title)}.`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-5 py-3 rounded-full bg-stone-950 hover:bg-exotic-purple text-white text-center text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-sm hover:shadow-md hover:scale-105 transform hover-glow"
-                      >
-                        Daftar / Konsultasi
-                      </a>
-                    </div>
-
+                    <a
+                      href={`https://wa.me/6282147630666?text=Halo%20LKP%20Exotic%20Solo%20Baru%2C%20saya%20tertarik%20mendaftar%20atau%20tanya%20detail%20mengenai%20program%3A%20${encodeURIComponent(courses[activeCourse3d].title)}.`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-5 py-3 rounded-full bg-stone-950 hover:bg-exotic-purple text-white text-center text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-sm hover:shadow-md hover:scale-105 transform hover-glow"
+                    >
+                      Daftar / Konsultasi
+                    </a>
                   </div>
 
                 </div>
-              </Reveal>
-            ))}
-          </div>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {courses.map((course, idx) => (
+                <Reveal key={idx} delay={idx * 150} className="flex">
+                  <HolographicCard>
+
+                    {/* Course Card Cover */}
+                    <div className="relative aspect-[16/9] overflow-hidden bg-stone-100">
+                      <img
+                        src={course.image}
+                        alt={course.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+
+                      {/* Tag badge */}
+                      <span className="absolute top-4 left-4 inline-flex px-3 py-1 bg-stone-950 text-exotic-purple-light text-[10px] font-bold uppercase tracking-widest rounded-full shadow-sm">
+                        {course.tag}
+                      </span>
+
+                      {/* Program title overlaid in cover */}
+                      <h3 className="absolute bottom-4 left-4 right-4 text-white font-serif text-xl sm:text-2xl font-semibold leading-snug drop-shadow-md">
+                        {course.title}
+                      </h3>
+                    </div>
+
+                    {/* Course Details Body */}
+                    <div className="p-6 sm:p-8 flex-1 flex flex-col justify-between space-y-6">
+                      <div className="space-y-4">
+
+                        {/* Duration / Certificate Tags */}
+                        <div className="flex flex-wrap items-center gap-3 text-xs">
+                          <span className="inline-flex items-center gap-1.5 font-bold text-exotic-purple bg-exotic-purple-light/40 px-2.5 py-1 rounded-md">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            {course.duration}
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 font-bold text-stone-700 bg-stone-100 px-2.5 py-1 rounded-md">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-stone-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                            </svg>
+                            {course.cert}
+                          </span>
+                        </div>
+
+                        <p className="text-stone-600 text-sm leading-relaxed">
+                          {course.desc}
+                        </p>
+
+                        {/* Highlights bullet list */}
+                        <div className="space-y-2 pt-2">
+                          <p className="text-xs font-bold text-stone-900 uppercase tracking-wider">Materi Utama:</p>
+                          <ul className="grid grid-cols-1 gap-2">
+                            {course.highlights.map((highlight, hIdx) => (
+                              <li key={hIdx} className="flex items-start gap-2.5 text-xs text-stone-600">
+                                <span className="flex-shrink-0 w-4 h-4 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mt-0.5">
+                                  ✓
+                                </span>
+                                <span>{highlight}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                      </div>
+
+                      {/* Pricing / Booking button */}
+                      <div className="pt-6 border-t border-stone-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+                        <div>
+                          <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider">Biaya Kursus</p>
+                          <p className="text-stone-900 font-bold text-sm mt-0.5">{course.price}</p>
+                        </div>
+
+                        <a
+                          href={`https://wa.me/6282147630666?text=Halo%20LKP%20Exotic%20Solo%20Baru%2C%20saya%20tertarik%20mendaftar%20atau%20tanya%20detail%20mengenai%20program%3A%20${encodeURIComponent(course.title)}.`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-5 py-3 rounded-full bg-stone-950 hover:bg-exotic-purple text-white text-center text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-sm hover:shadow-md hover:scale-105 transform hover-glow"
+                        >
+                          Daftar / Konsultasi
+                        </a>
+                      </div>
+
+                    </div>
+
+                  </HolographicCard>
+                </Reveal>
+              ))}
+            </div>
+          )}
 
         </div>
       </section>
