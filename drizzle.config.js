@@ -5,6 +5,6 @@ export default defineConfig({
   schema: './src/lib/schema.js',
   dialect: 'mysql',
   dbCredentials: {
-    url: 'mysql://root@127.0.0.1:3306/test1',
+    url: process.env.DATABASE_URL || 'mysql://root@127.0.0.1:3306/test1',
   },
 });

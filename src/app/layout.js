@@ -1,5 +1,6 @@
 import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+import SplashCursor from "@/components/SplashCursor";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -24,6 +25,7 @@ export default function RootLayout({ children }) {
       className={`${playfair.variable} ${jakarta.variable} h-full scroll-smooth antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[#FAF8F5] text-stone-900 font-sans">
+        <SplashCursor />
         {children}
       </body>
     </html>

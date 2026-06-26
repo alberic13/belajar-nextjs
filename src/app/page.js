@@ -5,7 +5,7 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import { motion, useMotionValue, useTransform, useMotionTemplate } from "framer-motion";
-import * as THREE from "three";
+
 
 if (typeof window !== "undefined") {
   gsap.registerPlugin(ScrollTrigger);
@@ -215,334 +215,7 @@ const HolographicCard = ({ children, className = "" }) => {
   );
 };
 
-// 3D Interactive Course Carousel using Three.js
-const ThreeCourseCarousel = ({ courses, activeIndex, onActiveIndexChange }) => {
-  const containerRef = useRef(null);
-  const canvasRef = useRef(null);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    let scene, camera, renderer;
-    let carouselGroup;
-    let particleSystem;
-    let pointsLight;
-    let isDragging = false;
-    let startX = 0;
-    let targetRotationY = 0;
-    let currentRotationY = 0;
-    let animationFrameId;
-    let width = containerRef.current.clientWidth;
-    let height = containerRef.current.clientHeight || 520;
-
-    // 1. Initialize Scene & Camera
-    scene = new THREE.Scene();
-    
-    camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 100);
-    camera.position.set(0, 0.4, 7.5);
-
-    // 2. Initialize Renderer
-    renderer = new THREE.WebGLRenderer({
-      canvas: canvasRef.current,
-      antialias: true,
-      alpha: true,
-      powerPreference: "high-performance"
-    });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-    // 3. Add Ambient & Spot Lights
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
-    scene.add(ambientLight);
-
-    // Purple point light that responds to mouse
-    pointsLight = new THREE.PointLight(0x7b2cbf, 3, 25);
-    pointsLight.position.set(0, 3, 5);
-    scene.add(pointsLight);
-
-    // Gold decorative backlight
-    const goldLight = new THREE.PointLight(0xc5a880, 2, 20);
-    goldLight.position.set(0, -3, -3);
-    scene.add(goldLight);
-
-    // 4. Create Carousel Group
-    carouselGroup = new THREE.Group();
-    scene.add(carouselGroup);
-
-    const count = courses.length;
-    const radius = 3.8;
-    const angleStep = (2 * Math.PI) / count;
-    const textureLoader = new THREE.TextureLoader();
-    const panels = [];
-
-    // Create cards
-    courses.forEach((course, idx) => {
-      // Card Group to hold front and back frame
-      const cardGroup = new THREE.Group();
-
-      // Front Image texture loading
-      const texture = textureLoader.load(course.image, () => {
-        if (idx === count - 1) {
-          setLoading(false); // set loading false when textures loaded
-        }
-      });
-
-      // Front plate (Image)
-      const imageGeo = new THREE.PlaneGeometry(3.2, 1.8);
-      const imageMat = new THREE.MeshStandardMaterial({
-        map: texture,
-        side: THREE.DoubleSide,
-        roughness: 0.3,
-        metalness: 0.1,
-      });
-      const imageMesh = new THREE.Mesh(imageGeo, imageMat);
-      imageMesh.position.z = 0.02; // sit slightly in front
-      cardGroup.add(imageMesh);
-
-      // Back plate (Frame)
-      const frameGeo = new THREE.PlaneGeometry(3.3, 1.9);
-      const frameMat = new THREE.MeshStandardMaterial({
-        color: 0x1a1a1a,
-        roughness: 0.1,
-        metalness: 0.8,
-        side: THREE.DoubleSide
-      });
-      const frameMesh = new THREE.Mesh(frameGeo, frameMat);
-      cardGroup.add(frameMesh);
-
-      // Inner Border Line (Gold VIP Trim)
-      const borderGeo = new THREE.PlaneGeometry(3.24, 1.84);
-      const borderMat = new THREE.MeshBasicMaterial({
-        color: 0xc5a880,
-        wireframe: true,
-        side: THREE.DoubleSide
-      });
-      const borderMesh = new THREE.Mesh(borderGeo, borderMat);
-      borderMesh.position.z = 0.01;
-      cardGroup.add(borderMesh);
-
-      // Position on cylinder circle
-      const angle = idx * angleStep;
-      cardGroup.position.x = Math.sin(angle) * radius;
-      cardGroup.position.z = Math.cos(angle) * radius;
-      
-      // Face outward relative to center
-      cardGroup.rotation.y = angle;
-
-      cardGroup.userData = { index: idx, angle: angle };
-      carouselGroup.add(cardGroup);
-      panels.push(cardGroup);
-    });
-
-    // 5. Add Particle Stream Background
-    const particleCount = 120;
-    const particleGeo = new THREE.BufferGeometry();
-    const particlePositions = new Float32Array(particleCount * 3);
-
-    for (let i = 0; i < particleCount * 3; i += 3) {
-      particlePositions[i] = (Math.random() - 0.5) * 12; // x
-      particlePositions[i + 1] = (Math.random() - 0.5) * 6; // y
-      particlePositions[i + 2] = (Math.random() - 0.5) * 10; // z
-    }
-
-    particleGeo.setAttribute("position", new THREE.BufferAttribute(particlePositions, 3));
-    const particleMat = new THREE.PointsMaterial({
-      color: 0x7b2cbf,
-      size: 0.06,
-      transparent: true,
-      opacity: 0.4,
-    });
-    particleSystem = new THREE.Points(particleGeo, particleMat);
-    scene.add(particleSystem);
-
-    // 6. Interaction Handlers
-    const getClientX = (e) => {
-      return e.touches ? e.touches[0].clientX : e.clientX;
-    };
-
-    const handlePointerDown = (e) => {
-      isDragging = true;
-      startX = getClientX(e);
-    };
-
-    const handlePointerMove = (e) => {
-      if (!isDragging) return;
-      const currentX = getClientX(e);
-      const deltaX = currentX - startX;
-      // Adjust sensitivity
-      targetRotationY += deltaX * 0.006;
-      startX = currentX;
-    };
-
-    const handlePointerUp = (e) => {
-      isDragging = false;
-      snapToClosest();
-    };
-
-    const snapToClosest = () => {
-      const step = angleStep;
-      const rawSteps = -targetRotationY / step;
-      const roundedSteps = Math.round(rawSteps);
-      targetRotationY = -roundedSteps * step;
-      
-      const positiveIndex = ((roundedSteps % count) + count) % count;
-      onActiveIndexChange(positiveIndex);
-    };
-
-    const handleMouseLeave = () => {
-      if (isDragging) {
-        isDragging = false;
-        snapToClosest();
-      }
-    };
-
-    // Listeners
-    const el = containerRef.current;
-    el.addEventListener("mousedown", handlePointerDown);
-    el.addEventListener("mousemove", handlePointerMove);
-    window.addEventListener("mouseup", handlePointerUp);
-    el.addEventListener("mouseleave", handleMouseLeave);
-
-    el.addEventListener("touchstart", handlePointerDown, { passive: true });
-    el.addEventListener("touchmove", handlePointerMove, { passive: true });
-    window.addEventListener("touchend", handlePointerUp);
-
-    // Raycast click to select
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-
-    const handleClick = (e) => {
-      if (e.changedTouches && e.changedTouches.length === 0) return;
-      const rect = renderer.domElement.getBoundingClientRect();
-      const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
-      const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
-      
-      mouse.x = ((clientX - rect.left) / width) * 2 - 1;
-      mouse.y = -((clientY - rect.top) / height) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, camera);
-      const intersects = raycaster.intersectObjects(carouselGroup.children, true);
-
-      if (intersects.length > 0) {
-        let obj = intersects[0].object;
-        while (obj.parent && obj.parent !== carouselGroup) {
-          obj = obj.parent;
-        }
-        const clickedIdx = obj.userData.index;
-        
-        const currentRot = targetRotationY;
-        const targetAngle = -clickedIdx * angleStep;
-        
-        const diff = ((targetAngle - currentRot + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
-        targetRotationY = currentRot + diff;
-        
-        onActiveIndexChange(clickedIdx);
-      }
-    };
-
-    el.addEventListener("click", handleClick);
-
-    // Track mouse coordinates for lighting effects
-    const handleGlobalMouseMove = (e) => {
-      const rect = renderer.domElement.getBoundingClientRect();
-      const mouseX = ((e.clientX - rect.left) / width) * 2 - 1;
-      const mouseY = -((e.clientY - rect.top) / height) * 2 + 1;
-      pointsLight.position.x = mouseX * 4;
-      pointsLight.position.y = mouseY * 3;
-    };
-    el.addEventListener("mousemove", handleGlobalMouseMove);
-
-    // Track React state changes to spin automatically when clicked from outside
-    const syncRotationWithActiveIndex = () => {
-      const targetAngle = -activeIndex * angleStep;
-      const currentRot = targetRotationY;
-      const diff = ((targetAngle - currentRot + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
-      targetRotationY = currentRot + diff;
-    };
-    syncRotationWithActiveIndex();
-
-    // Resize Handler
-    const handleResize = () => {
-      if (!containerRef.current) return;
-      width = containerRef.current.clientWidth;
-      height = containerRef.current.clientHeight || 520;
-      camera.aspect = width / height;
-      camera.updateProjectionMatrix();
-      renderer.setSize(width, height);
-    };
-    window.addEventListener("resize", handleResize);
-
-    // Animation Loop
-    const animate = () => {
-      animationFrameId = requestAnimationFrame(animate);
-
-      currentRotationY += (targetRotationY - currentRotationY) * 0.08;
-      carouselGroup.rotation.y = currentRotationY;
-
-      if (!isDragging) {
-        targetRotationY += 0.0004;
-      }
-
-      if (particleSystem) {
-        particleSystem.rotation.y += 0.0006;
-        particleSystem.rotation.x += 0.0002;
-      }
-
-      panels.forEach((panel) => {
-        const tempV = new THREE.Vector3();
-        panel.getWorldPosition(tempV);
-        const dist = tempV.distanceTo(camera.position);
-        
-        const scaleVal = THREE.MathUtils.mapLinear(dist, 3.5, 11.5, 1.0, 0.72);
-        panel.scale.set(scaleVal, scaleVal, scaleVal);
-        
-        panel.children.forEach(mesh => {
-          if (mesh.material && mesh.material.opacity !== undefined) {
-            const opacityVal = THREE.MathUtils.mapLinear(dist, 3.5, 11.5, 1.0, 0.35);
-            mesh.material.opacity = opacityVal;
-            mesh.material.transparent = true;
-          }
-        });
-      });
-
-      renderer.render(scene, camera);
-    };
-
-    animate();
-
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-      window.removeEventListener("resize", handleResize);
-      el.removeEventListener("mousedown", handlePointerDown);
-      el.removeEventListener("mousemove", handlePointerMove);
-      window.removeEventListener("mouseup", handlePointerUp);
-      el.removeEventListener("mouseleave", handleMouseLeave);
-      el.removeEventListener("click", handleClick);
-      el.removeEventListener("mousemove", handleGlobalMouseMove);
-      
-      el.removeEventListener("touchstart", handlePointerDown);
-      el.removeEventListener("touchmove", handlePointerMove);
-      window.removeEventListener("touchend", handlePointerUp);
-
-      renderer.dispose();
-    };
-  }, [activeIndex]);
-
-  return (
-    <div ref={containerRef} className="canvas-container cursor-grab active:cursor-grabbing">
-      {loading && (
-        <div className="canvas-loading">
-          <div className="canvas-loading-spinner" />
-          <span className="text-xs uppercase font-bold tracking-widest text-[#C5A880] animate-pulse">
-            Memuat Studio 3D...
-          </span>
-        </div>
-      )}
-      <canvas ref={canvasRef} className="w-full h-full block" />
-    </div>
-  );
-};
 
 const allStockImages = [
   "/images/hero_beauty.png",
@@ -1016,13 +689,136 @@ const LogoIntroHero = () => {
   );
 };
 
+const courses = [
+  {
+    title: "Kursus Salon Kecantikan (Complete)",
+    tag: "Terpopuler",
+    duration: "3 Bulan | 40 Sesi",
+    cert: "Sertifikat Resmi LKP",
+    desc: "Program lengkap yang dirancang khusus untuk Anda yang ingin menguasai keterampilan kecantikan salon secara menyeluruh, dari teknik dasar hingga manajemen operasional salon kecantikan profesional.",
+    highlights: [
+      "Potong Rambut Dasar & Modern (Wanita & Pria)",
+      "Perawatan Rambut (Creambath, Hair Spa, Hair Mask)",
+      "Perawatan Wajah (Facial Tradisional & Modern)",
+      "Manajemen Keuangan, Inventaris & Bisnis Salon",
+    ],
+    price: "Hubungi Admin (Cicilan Tersedia)",
+    image: "/images/hero_beauty.png",
+  },
+  {
+    title: "Hairstyling & Coloring Course",
+    tag: "Best Seller",
+    duration: "1.5 Bulan | 20 Sesi",
+    cert: "Sertifikat Kompetensi",
+    desc: "Kuasai seni penataan rambut modern (hairstyling), sanggul modern, blowout, catok curly, serta tren teknik pewarnaan rambut terkini seperti balayage, ombre, dan highlighting.",
+    highlights: [
+      "Teknik Blow-Dry, Sanggul Modern & Styling Pengantin",
+      "Pewarnaan Rambut Dasar & Pemilihan Bleaching",
+      "Trend Pewarnaan Fashion (Balayage, Highlight, Ombre)",
+      "Perawatan Pasca-Pewarnaan & Keamanan Kimia",
+    ],
+    price: "Hubungi Admin untuk Promo",
+    image: "/images/course_hair.png",
+  },
+  {
+    title: "Hair Extensions Course",
+    tag: "Spesialisasi",
+    duration: "2 Minggu | 6 Sesi",
+    cert: "Sertifikat Khusus",
+    desc: "Pelajari rahasia pemasangan hair extensions yang rapi, aman, dan tahan lama menggunakan berbagai metode modern. Peluang keuntungan yang sangat tinggi di industri kecantikan.",
+    highlights: [
+      "Metode Pemasangan Micro-Ring, Tape, dan Sewing (Jahit)",
+      "Teknik Pemilihan Rambut Asli Berkualitas Tinggi",
+      "Perawatan, Pencucian & Re-styling Hair Extensions",
+      "Pelepasan & Re-conditioning Hair Extensions tanpa merusak rambut asli",
+    ],
+    price: "Hubungi Admin",
+    image: "/images/hero_beauty.png",
+  },
+  {
+    title: "Professional Make-Up Artist (MUA) Course",
+    tag: "Rekomendasi",
+    duration: "1 Bulan | 12 Sesi",
+    cert: "Portofolio & Sertifikat",
+    desc: "Ubah bakat merias Anda menjadi karir profesional. Pelajari teknik koreksi wajah, rias mata dramatis, contouring, serta riasan untuk wisuda, prewedding, pengantin, hingga photoshoot komersial.",
+    highlights: [
+      "Koreksi Wajah (Contouring, Highlighting & Rias Mata 3D)",
+      "MUA Riasan Natural, Glamour, Wisuda, dan Pesta",
+      "Riasan Pengantin Tradisional & Modern",
+      "Tips Foto Portofolio & Pemasaran Jasa MUA di Media Sosial",
+    ],
+    price: "Hubungi Admin (Free Alat Praktik di Kelas)",
+    image: "/images/course_makeup.png",
+  },
+];
+
+const testimonials = [
+  {
+    name: "Riska Amalia",
+    role: "Alumni 2025 - Owner Riska Beauty Salon",
+    rating: 5,
+    text: "Kursusnya sangat menyenangkan! Instrukturnya sabar sekali mengajarkan potong rambut dari yang sama sekali tidak bisa memegang gunting sampai sekarang saya sudah berani membuka jasa salon sendiri di rumah. Sangat direkomendasikan bagi pemula!",
+  },
+  {
+    name: "Dwi Hapsari",
+    role: "Alumni 2025 - Profesional Hairstylist",
+    rating: 5,
+    text: "LKP Exotic Solo Baru memang terbaik di Sukoharjo. Saya mengambil kelas hair extension dan salon management. Alat praktiknya lengkap, tempatnya bersih, nyaman ber-AC, dan dekat pusat Solo Baru. Penjelasannya mudah dipahami.",
+  },
+  {
+    name: "Cindy Wijaya",
+    role: "Alumni 2024 - Color Specialist",
+    rating: 5,
+    text: "Materi colouring dan hairstyling di sini sangat update dengan tren salon saat ini. Sertifikat resminya berizin dinas pendidikan, jadi langsung bernilai tinggi saat saya melamar kerja di salon premium. Terima kasih LKP Exotic!",
+  },
+  {
+    name: "Mega Lestari",
+    role: "Alumni 2024 - MUA Profesional",
+    rating: 5,
+    text: "Belajar MUA di LKP Exotic diajarkan secara intensif. Koreksi wajah benar-benar detail dibimbing satu per satu. Model untuk praktik langsung disediakan, produk makeup yang dipakai di kelas pun kosmetik bermerek.",
+  },
+  {
+    name: "Anita Rahayu",
+    role: "Alumni 2025 - Pengusaha Salon",
+    rating: 5,
+    text: "Tempat kursus kecantikan paling terjangkau dengan fasilitas premium di Solo Baru. Mentornya ramah, telaten, dan jam praktiknya fleksibel bisa disesuaikan buat saya yang masih sibuk mengurus rumah tangga.",
+  },
+  {
+    name: "Siti Zulaikha",
+    role: "Alumni 2023 - Senior Salon Therapist",
+    rating: 5,
+    text: "Setelah lulus, saya langsung disalurkan bekerja ke salon rekanan LKP Exotic. Sangat bersyukur karena layanannya nyata, tidak sekadar teori saja. Hubungan alumni dengan LKP pun terjalin sangat erat.",
+  },
+];
+
+const faqs = [
+  {
+    q: "Apakah saya harus memiliki keterampilan dasar sebelum mendaftar?",
+    a: "Tidak perlu sama sekali. Seluruh materi kursus di LKP Exotic dirancang ramah untuk pemula dan diajarkan secara sabar mulai dari dasar (nol) hingga Anda benar-benar mahir dan percaya diri.",
+  },
+  {
+    q: "Apakah lulusan akan mendapatkan sertifikat resmi?",
+    a: "Ya. Setiap peserta yang menyelesaikan program kursus dan dinyatakan lulus berhak menerima Sertifikat Resmi yang diterbitkan oleh LKP Exotic Solo Baru, lengkap dengan tanda izin resmi dari Dinas Pendidikan setempat.",
+  },
+  {
+    q: "Bagaimana jadwal kelasnya? Apakah fleksibel?",
+    a: "Kami menyediakan jadwal kelas pagi (09.00 - 12.00) dan siang (13.30 - 16.30). Jadwal hari belajar dapat didiskusikan secara fleksibel bersama mentor agar tidak mengganggu aktivitas rutin Anda.",
+  },
+  {
+    q: "Apakah semua peralatan dan bahan praktik disediakan oleh LKP?",
+    a: "Ya, selama proses belajar-mengajar di kelas, LKP Exotic menyediakan peralatan utama dan bahan kosmetik/haircare untuk digunakan secara gratis. Namun, kami juga menyarankan siswa memiliki peralatan dasar sendiri untuk latihan mandiri di rumah.",
+  },
+  {
+    q: "Bagaimana sistem pembayarannya? Apakah bisa dicicil?",
+    a: "Tentu bisa. Untuk meringankan pembiayaan, biaya investasi kursus kecantikan kami dapat diangsur dalam 2 hingga 3 kali pembayaran sesuai dengan ketentuan administrasi yang disepakati.",
+  },
+];
+
 export default function Home() {
   // State for Course Quiz
   const [quizStep, setQuizStep] = useState(0); // 0: intro, 1: goal, 2: field, 3: commitment, 4: result
   
-  // State for 3D Course Carousel View
-  const [coursesViewMode, setCoursesViewMode] = useState("grid"); // "grid" or "3d"
-  const [activeCourse3d, setActiveCourse3d] = useState(0);
+
   const [quizAnswers, setQuizAnswers] = useState({
     goal: "",
     field: "",
@@ -1128,130 +924,8 @@ export default function Home() {
     }, 1000);
   };
 
-  const courses = [
-    {
-      title: "Kursus Salon Kecantikan (Complete)",
-      tag: "Terpopuler",
-      duration: "3 Bulan | 40 Sesi",
-      cert: "Sertifikat Resmi LKP",
-      desc: "Program lengkap yang dirancang khusus untuk Anda yang ingin menguasai keterampilan kecantikan salon secara menyeluruh, dari teknik dasar hingga manajemen operasional salon kecantikan profesional.",
-      highlights: [
-        "Potong Rambut Dasar & Modern (Wanita & Pria)",
-        "Perawatan Rambut (Creambath, Hair Spa, Hair Mask)",
-        "Perawatan Wajah (Facial Tradisional & Modern)",
-        "Manajemen Keuangan, Inventaris & Bisnis Salon",
-      ],
-      price: "Hubungi Admin (Cicilan Tersedia)",
-      image: "/images/hero_beauty.png",
-    },
-    {
-      title: "Hairstyling & Coloring Course",
-      tag: "Best Seller",
-      duration: "1.5 Bulan | 20 Sesi",
-      cert: "Sertifikat Kompetensi",
-      desc: "Kuasai seni penataan rambut modern (hairstyling), sanggul modern, blowout, catok curly, serta tren teknik pewarnaan rambut terkini seperti balayage, ombre, dan highlighting.",
-      highlights: [
-        "Teknik Blow-Dry, Sanggul Modern & Styling Pengantin",
-        "Pewarnaan Rambut Dasar & Pemilihan Bleaching",
-        "Trend Pewarnaan Fashion (Balayage, Highlight, Ombre)",
-        "Perawatan Pasca-Pewarnaan & Keamanan Kimia",
-      ],
-      price: "Hubungi Admin untuk Promo",
-      image: "/images/course_hair.png",
-    },
-    {
-      title: "Hair Extensions Course",
-      tag: "Spesialisasi",
-      duration: "2 Minggu | 6 Sesi",
-      cert: "Sertifikat Khusus",
-      desc: "Pelajari rahasia pemasangan hair extensions yang rapi, aman, dan tahan lama menggunakan berbagai metode modern. Peluang keuntungan yang sangat tinggi di industri kecantikan.",
-      highlights: [
-        "Metode Pemasangan Micro-Ring, Tape, dan Sewing (Jahit)",
-        "Teknik Pemilihan Rambut Asli Berkualitas Tinggi",
-        "Perawatan, Pencucian & Re-styling Hair Extensions",
-        "Pelepasan & Re-conditioning Hair Extensions tanpa merusak rambut asli",
-      ],
-      price: "Hubungi Admin",
-      image: "/images/hero_beauty.png", // Fallback to hero beauty salon workspace
-    },
-    {
-      title: "Professional Make-Up Artist (MUA) Course",
-      tag: "Rekomendasi",
-      duration: "1 Bulan | 12 Sesi",
-      cert: "Portofolio & Sertifikat",
-      desc: "Ubah bakat merias Anda menjadi karir profesional. Pelajari teknik koreksi wajah, rias mata dramatis, contouring, serta riasan untuk wisuda, prewedding, pengantin, hingga photoshoot komersial.",
-      highlights: [
-        "Koreksi Wajah (Contouring, Highlighting & Rias Mata 3D)",
-        "MUA Riasan Natural, Glamour, Wisuda, dan Pesta",
-        "Riasan Pengantin Tradisional & Modern",
-        "Tips Foto Portofolio & Pemasaran Jasa MUA di Media Sosial",
-      ],
-      price: "Hubungi Admin (Free Alat Praktik di Kelas)",
-      image: "/images/course_makeup.png",
-    },
-  ];
-
-  const testimonials = [
-    {
-      name: "Riska Amalia",
-      role: "Alumni 2025 - Owner Riska Beauty Salon",
-      rating: 5,
-      text: "Kursusnya sangat menyenangkan! Instrukturnya sabar sekali mengajarkan potong rambut dari yang sama sekali tidak bisa memegang gunting sampai sekarang saya sudah berani membuka jasa salon sendiri di rumah. Sangat direkomendasikan bagi pemula!",
-    },
-    {
-      name: "Dwi Hapsari",
-      role: "Alumni 2025 - Profesional Hairstylist",
-      rating: 5,
-      text: "LKP Exotic Solo Baru memang terbaik di Sukoharjo. Saya mengambil kelas hair extension dan salon management. Alat praktiknya lengkap, tempatnya bersih, nyaman ber-AC, dan dekat pusat Solo Baru. Penjelasannya mudah dipahami.",
-    },
-    {
-      name: "Cindy Wijaya",
-      role: "Alumni 2024 - Color Specialist",
-      rating: 5,
-      text: "Materi colouring dan hairstyling di sini sangat update dengan tren salon saat ini. Sertifikat resminya berizin dinas pendidikan, jadi langsung bernilai tinggi saat saya melamar kerja di salon premium. Terima kasih LKP Exotic!",
-    },
-    {
-      name: "Mega Lestari",
-      role: "Alumni 2024 - MUA Profesional",
-      rating: 5,
-      text: "Belajar MUA di LKP Exotic diajarkan secara intensif. Koreksi wajah benar-benar detail dibimbing satu per satu. Model untuk praktik langsung disediakan, produk makeup yang dipakai di kelas pun kosmetik bermerek.",
-    },
-    {
-      name: "Anita Rahayu",
-      role: "Alumni 2025 - Pengusaha Salon",
-      rating: 5,
-      text: "Tempat kursus kecantikan paling terjangkau dengan fasilitas premium di Solo Baru. Mentornya ramah, telaten, dan jam praktiknya fleksibel bisa disesuaikan buat saya yang masih sibuk mengurus rumah tangga.",
-    },
-    {
-      name: "Siti Zulaikha",
-      role: "Alumni 2023 - Senior Salon Therapist",
-      rating: 5,
-      text: "Setelah lulus, saya langsung disalurkan bekerja ke salon rekanan LKP Exotic. Sangat bersyukur karena layanannya nyata, tidak sekadar teori saja. Hubungan alumni dengan LKP pun terjalin sangat erat.",
-    },
-  ];
-
-  const faqs = [
-    {
-      q: "Apakah saya harus memiliki keterampilan dasar sebelum mendaftar?",
-      a: "Tidak perlu sama sekali. Seluruh materi kursus di LKP Exotic dirancang ramah untuk pemula dan diajarkan secara sabar mulai dari dasar (nol) hingga Anda benar-benar mahir dan percaya diri.",
-    },
-    {
-      q: "Apakah lulusan akan mendapatkan sertifikat resmi?",
-      a: "Ya. Setiap peserta yang menyelesaikan program kursus dan dinyatakan lulus berhak menerima Sertifikat Resmi yang diterbitkan oleh LKP Exotic Solo Baru, lengkap dengan tanda izin resmi dari Dinas Pendidikan setempat.",
-    },
-    {
-      q: "Bagaimana jadwal kelasnya? Apakah fleksibel?",
-      a: "Kami menyediakan jadwal kelas pagi (09.00 - 12.00) dan siang (13.30 - 16.30). Jadwal hari belajar dapat didiskusikan secara fleksibel bersama mentor agar tidak mengganggu aktivitas rutin Anda.",
-    },
-    {
-      q: "Apakah semua peralatan dan bahan praktik disediakan oleh LKP?",
-      a: "Ya, selama proses belajar-mengajar di kelas, LKP Exotic menyediakan peralatan utama dan bahan kosmetik/haircare untuk digunakan secara gratis. Namun, kami juga menyarankan siswa memiliki peralatan dasar sendiri untuk latihan mandiri di rumah.",
-    },
-    {
-      q: "Bagaimana sistem pembayarannya? Apakah bisa dicicil?",
-      a: "Tentu bisa. Untuk meringankan pembiayaan, biaya investasi kursus kecantikan kami dapat diangsur dalam 2 hingga 3 kali pembayaran sesuai dengan ketentuan administrasi yang disepakati.",
-    },
-  ];
+  // Use static courses list without shuffle functionality
+  const courseList = courses;
 
   return (
     <div className="flex-1 w-full flex flex-col font-sans bg-gradient-to-tr from-[#FAF8F5] via-[#FAF8F5] to-[#F5EEFD]">
@@ -1566,121 +1240,11 @@ export default function Home() {
               </p>
             </div>
           </Reveal>
-
-          {/* View Toggle Tabs */}
-          <div className="flex justify-center mb-12">
-            <div className="inline-flex rounded-full bg-stone-100 p-1 border border-stone-200 shadow-inner">
-              <button
-                onClick={() => setCoursesViewMode("grid")}
-                className={cn(
-                  "px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer",
-                  coursesViewMode === "grid"
-                    ? "bg-stone-950 text-white shadow-md"
-                    : "text-stone-500 hover:text-stone-900"
-                )}
-              >
-                Grid View
-              </button>
-              <button
-                onClick={() => setCoursesViewMode("3d")}
-                className={cn(
-                  "px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 cursor-pointer flex items-center gap-1.5",
-                  coursesViewMode === "3d"
-                    ? "bg-exotic-purple text-white shadow-md"
-                    : "text-stone-500 hover:text-stone-900"
-                )}
-              >
-                <span>3D Virtual Studio</span>
-                <span className="px-1.5 py-0.5 rounded-full bg-exotic-purple-light/20 text-exotic-purple-light text-[9px] font-bold tracking-normal leading-none animate-pulse">
-                  NEW
-                </span>
-              </button>
-            </div>
-          </div>
-
-          {coursesViewMode === "3d" ? (
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center animate-fade-in-up">
-              {/* Left Column: 3D Canvas Carousel */}
-              <div className="lg:col-span-7 w-full flex flex-col space-y-4">
-                <ThreeCourseCarousel
-                  courses={courses}
-                  activeIndex={activeCourse3d}
-                  onActiveIndexChange={setActiveCourse3d}
-                />
-                <div className="text-center text-xs text-stone-500 font-sans italic flex items-center justify-center gap-2 select-none">
-                  <span>↔</span>
-                  <span>Klik & geser untuk memutar korsel 3D, atau klik kartu untuk memilih</span>
-                </div>
-              </div>
-
-              {/* Right Column: Active Course Info Panel (Glassmorphism card) */}
-              <div className="lg:col-span-5 w-full">
-                <div className="bg-white/80 backdrop-blur-md rounded-3xl p-6 sm:p-8 border border-stone-200/80 shadow-xl min-h-[520px] flex flex-col justify-between space-y-6 hover:shadow-exotic-purple/5 transition-all duration-300">
-                  <div className="space-y-5">
-                    {/* Badge and Title */}
-                    <div className="space-y-2">
-                      <span className="inline-flex px-3 py-1 bg-stone-950 text-exotic-purple-light text-[10px] font-bold uppercase tracking-widest rounded-full shadow-sm">
-                        {courses[activeCourse3d].tag}
-                      </span>
-                      <h3 className="text-stone-950 font-serif text-2xl sm:text-3xl font-bold leading-tight">
-                        {courses[activeCourse3d].title}
-                      </h3>
-                    </div>
-
-                    {/* Tags */}
-                    <div className="flex flex-wrap items-center gap-3 text-xs">
-                      <span className="inline-flex items-center gap-1.5 font-bold text-exotic-purple bg-exotic-purple-light/40 px-2.5 py-1 rounded-md">
-                        {courses[activeCourse3d].duration}
-                      </span>
-                      <span className="inline-flex items-center gap-1.5 font-bold text-stone-700 bg-stone-100 px-2.5 py-1 rounded-md">
-                        {courses[activeCourse3d].cert}
-                      </span>
-                    </div>
-
-                    <p className="text-stone-600 text-sm leading-relaxed">
-                      {courses[activeCourse3d].desc}
-                    </p>
-
-                    {/* Highlights bullet list */}
-                    <div className="space-y-2 pt-2">
-                      <p className="text-xs font-bold text-stone-900 uppercase tracking-wider">Materi Utama:</p>
-                      <ul className="grid grid-cols-1 gap-2">
-                        {courses[activeCourse3d].highlights.map((highlight, hIdx) => (
-                          <li key={hIdx} className="flex items-start gap-2.5 text-xs text-stone-600">
-                            <span className="flex-shrink-0 w-4 h-4 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mt-0.5">
-                              ✓
-                            </span>
-                            <span>{highlight}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-
-                  {/* Pricing / Booking button */}
-                  <div className="pt-6 border-t border-stone-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-                    <div>
-                      <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider">Biaya Kursus</p>
-                      <p className="text-stone-900 font-bold text-sm mt-0.5">{courses[activeCourse3d].price}</p>
-                    </div>
-
-                    <a
-                      href={`https://wa.me/6282147630666?text=Halo%20LKP%20Exotic%20Solo%20Baru%2C%20saya%20tertarik%20mendaftar%20atau%20tanya%20detail%20mengenai%20program%3A%20${encodeURIComponent(courses[activeCourse3d].title)}.`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-5 py-3 rounded-full bg-stone-950 hover:bg-exotic-purple text-white text-center text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-sm hover:shadow-md hover:scale-105 transform hover-glow"
-                    >
-                      Daftar / Konsultasi
-                    </a>
-                  </div>
-
-                </div>
-              </div>
-            </div>
-          ) : (
+          
+          <Reveal delay={150}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {courses.map((course, idx) => (
-                <Reveal key={idx} delay={idx * 150} className="flex">
+              {courseList.map((course) => (
+                <div key={course.title} className="flex">
                   <HolographicCard>
 
                     {/* Course Card Cover */}
@@ -1764,11 +1328,10 @@ export default function Home() {
                     </div>
 
                   </HolographicCard>
-                </Reveal>
+                </div>
               ))}
             </div>
-          )}
-
+          </Reveal>
         </div>
       </section>
 

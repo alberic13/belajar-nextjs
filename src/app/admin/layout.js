@@ -1,10 +1,16 @@
 import Link from "next/link";
 import { getSession } from "@/lib/session";
 import { logoutUser } from "@/app/login/actions";
+import { redirect } from "next/navigation";
 
 export default async function AdminLayout({ children }) {
   const session = await getSession();
-  const email = session?.email || "Admin";
+  
+  if (!session) {
+    redirect("/login");
+  }
+
+  const email = session.email || "Admin";
   const initials = email.slice(0, 2).toUpperCase();
 
   return (
