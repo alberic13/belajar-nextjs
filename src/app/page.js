@@ -178,7 +178,7 @@ const HeroSection = ({ title, subtitle, actions, stats, images, className }) => 
       gsap.to(wrapperSelector, {
         opacity: 0,
         scale: 0.93,
-        duration: 0.5,
+        duration: 0.2,
         ease: "power2.inOut",
         onComplete: () => {
           setCollageImages(prev => {
@@ -188,7 +188,7 @@ const HeroSection = ({ title, subtitle, actions, stats, images, className }) => 
           });
         }
       });
-    }, 6000);
+    }, 3000);
 
     return () => clearInterval(timer);
   }, []);
@@ -198,7 +198,7 @@ const HeroSection = ({ title, subtitle, actions, stats, images, className }) => 
     gsap.to(".hero-collage-img-wrapper", {
       opacity: 1,
       scale: 1,
-      duration: 0.6,
+      duration: 0.25,
       ease: "power2.out",
       overwrite: "auto"
     });
@@ -251,21 +251,21 @@ const HeroSection = ({ title, subtitle, actions, stats, images, className }) => 
     // Continuous floating animation for background decorative shapes
     gsap.to(".hero-shape-1", {
       y: -12,
-      duration: 3,
+      duration: 1.5,
       repeat: -1,
       yoyo: true,
       ease: "sine.inOut"
     });
     gsap.to(".hero-shape-2", {
       y: 10,
-      duration: 4,
+      duration: 2.0,
       repeat: -1,
       yoyo: true,
       ease: "sine.inOut"
     });
     gsap.to(".hero-shape-3", {
       y: -8,
-      duration: 3.5,
+      duration: 1.8,
       repeat: -1,
       yoyo: true,
       ease: "sine.inOut"
@@ -275,7 +275,7 @@ const HeroSection = ({ title, subtitle, actions, stats, images, className }) => 
     gsap.to(".hero-img-1 img", {
       y: -8,
       rotation: 0.8,
-      duration: 5,
+      duration: 2.2,
       repeat: -1,
       yoyo: true,
       ease: "sine.inOut"
@@ -283,7 +283,7 @@ const HeroSection = ({ title, subtitle, actions, stats, images, className }) => 
     gsap.to(".hero-img-2 img", {
       y: 10,
       rotation: -0.8,
-      duration: 6,
+      duration: 2.5,
       repeat: -1,
       yoyo: true,
       ease: "sine.inOut"
@@ -291,7 +291,7 @@ const HeroSection = ({ title, subtitle, actions, stats, images, className }) => 
     gsap.to(".hero-img-3 img", {
       y: -6,
       rotation: 0.5,
-      duration: 5.5,
+      duration: 2.3,
       repeat: -1,
       yoyo: true,
       ease: "sine.inOut"
@@ -360,11 +360,16 @@ const HeroSection = ({ title, subtitle, actions, stats, images, className }) => 
   }, { scope: triggerRef });
 
   return (
-    <div ref={triggerRef} className="relative w-full h-auto lg:h-[135vh] bg-stone-950 overflow-hidden">
+    <div ref={triggerRef} className="relative w-full h-auto lg:h-[135vh] bg-[#FAF8F5] overflow-hidden">
+      {/* Blurred background decorative elements */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden blur-[100px] opacity-60 z-0">
+        <div className="absolute top-1/4 left-1/4 w-[400px] h-[400px] rounded-full bg-exotic-purple/15" />
+        <div className="absolute bottom-1/4 right-1/4 w-[450px] h-[450px] rounded-full bg-[#C5A880]/15" />
+      </div>
       <div className="relative lg:sticky lg:top-20 w-full min-h-0 lg:min-h-[calc(100vh-5rem)] lg:h-[calc(100vh-5rem)] z-10">
         <section
           ref={containerRef}
-          className={cn('w-full h-auto lg:h-full overflow-visible lg:overflow-hidden bg-background flex items-center py-16 lg:py-0 border-x border-b border-stone-800/10 shadow-lg', className)}
+          className={cn('w-full h-auto lg:h-full overflow-visible lg:overflow-hidden bg-background flex items-center py-16 lg:py-0 border-x border-b border-stone-200/60 shadow-xl', className)}
         >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 items-center gap-12 lg:grid-cols-2 lg:gap-8 w-full">
             {/* Left Column: Text Content */}
@@ -1865,6 +1870,9 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             <p className="text-[10px] text-stone-500">
               &copy; {new Date().getFullYear()} LKP {renderTextWithExotic("Exotic")} Solo Baru. All Rights Reserved.
+            </p>
+            <p className="text-[10px] text-stone-500">
+              LKP Salon dan Kecantikan {renderTextWithExotic("Exotic")} | zalde
             </p>
           </div>
 
