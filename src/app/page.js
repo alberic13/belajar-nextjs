@@ -1866,9 +1866,6 @@ export default function Home() {
             <p className="text-[10px] text-stone-500">
               &copy; {new Date().getFullYear()} LKP {renderTextWithExotic("Exotic")} Solo Baru. All Rights Reserved.
             </p>
-            <p className="text-[10px] text-stone-500">
-              Kursus Kecantikan Solo Baru | Website oleh Antigravity
-            </p>
           </div>
 
         </div>
