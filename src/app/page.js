@@ -5,6 +5,7 @@ import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@gsap/react";
 import { motion, useMotionValue, useTransform, useMotionTemplate } from "framer-motion";
+import ThreeDSlider from "@/components/ThreeDSlider";
 
 
 if (typeof window !== "undefined") {
@@ -817,6 +818,9 @@ const faqs = [
 export default function Home() {
   // State for Course Quiz
   const [quizStep, setQuizStep] = useState(0); // 0: intro, 1: goal, 2: field, 3: commitment, 4: result
+
+  // State for selected course in 3D slider
+  const [selectedCourse, setSelectedCourse] = useState(courses[0]);
   
 
   const [quizAnswers, setQuizAnswers] = useState({
@@ -1222,116 +1226,128 @@ export default function Home() {
 
         </div>
       </section>
-      {/* COURSE LIST SECTION */}
-      <section id="courses" className="py-20 bg-[#FAF8F5]">
+      {/* COURSE LIST SECTION — 3D Slider */}
+      <section id="courses" className="py-20 bg-stone-950 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Section Header */}
           <Reveal delay={0}>
-            <div className="text-center max-w-3xl mx-auto mb-16 space-y-4">
+            <div className="text-center max-w-3xl mx-auto mb-10 space-y-4">
               <span className="text-xs uppercase font-bold text-exotic-purple tracking-widest">
                 Program Kursus Kecantikan Resmi
               </span>
-              <h2 className="font-serif text-3xl sm:text-4xl text-stone-950 font-semibold leading-tight">
+              <h2 className="font-serif text-3xl sm:text-4xl text-white font-semibold leading-tight">
                 Pilih Program Keahlian Terbaik Anda
               </h2>
-              <p className="text-stone-600 font-sans leading-relaxed">
-                Materi kursus terstruktur dari dasar. Didampingi instruktur ahli yang telaten dan berpengalaman di bidang salon kecantikan.
+              <p className="text-stone-400 font-sans leading-relaxed text-sm">
+                Geser kartu untuk menjelajahi program. Klik kartu untuk melihat detail lengkap.
               </p>
             </div>
           </Reveal>
-          
-          <Reveal delay={150}>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {courseList.map((course) => (
-                <div key={course.title} className="flex">
-                  <HolographicCard>
 
-                    {/* Course Card Cover */}
-                    <div className="relative aspect-[16/9] overflow-hidden bg-stone-100">
-                      <img
-                        src={course.image}
-                        alt={course.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+          {/* 3D Slider */}
+          <ThreeDSlider
+            items={courseList.map((course, idx) => ({
+              title: course.title,
+              num: String(idx + 1).padStart(2, '0'),
+              imageUrl: course.image,
+              tag: course.tag,
+              duration: course.duration,
+              data: course,
+            }))}
+            speedWheel={0.05}
+            speedDrag={-0.15}
+            onItemClick={(item) => setSelectedCourse(item.data)}
+          />
 
-                      {/* Tag badge */}
-                      <span className="absolute top-4 left-4 inline-flex px-3 py-1 bg-stone-950 text-exotic-purple-light text-[10px] font-bold uppercase tracking-widest rounded-full shadow-sm">
-                        {course.tag}
-                      </span>
+          {/* Hint */}
+          <p className="text-center text-stone-600 text-[11px] uppercase tracking-widest mt-3 font-bold select-none">
+            ← scroll / drag / click →
+          </p>
 
-                      {/* Program title overlaid in cover */}
-                      <h3 className="absolute bottom-4 left-4 right-4 text-white font-serif text-xl sm:text-2xl font-semibold leading-snug drop-shadow-md">
-                        {course.title}
+          {/* Course Detail Panel */}
+          {selectedCourse && (
+            <Reveal delay={0}>
+              <div className="mt-12 bg-stone-900 border border-white/8 rounded-3xl overflow-hidden shadow-2xl">
+                <div className="grid grid-cols-1 lg:grid-cols-5">
+
+                  {/* Left: image */}
+                  <div className="lg:col-span-2 relative min-h-[240px] lg:min-h-full">
+                    <img
+                      src={selectedCourse.image}
+                      alt={selectedCourse.title}
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent to-stone-900/80" />
+                    <span className="absolute top-4 left-4 px-3 py-1 bg-stone-950/90 text-exotic-purple-light text-[10px] font-bold uppercase tracking-widest rounded-full border border-exotic-purple/30">
+                      {selectedCourse.tag}
+                    </span>
+                  </div>
+
+                  {/* Right: details */}
+                  <div className="lg:col-span-3 p-8 sm:p-10 flex flex-col justify-between space-y-6">
+                    <div className="space-y-4">
+                      <h3 className="font-serif text-2xl sm:text-3xl font-semibold text-white leading-tight">
+                        {selectedCourse.title}
                       </h3>
-                    </div>
 
-                    {/* Course Details Body */}
-                    <div className="p-6 sm:p-8 flex-1 flex flex-col justify-between space-y-6">
-                      <div className="space-y-4">
-
-                        {/* Duration / Certificate Tags */}
-                        <div className="flex flex-wrap items-center gap-3 text-xs">
-                          <span className="inline-flex items-center gap-1.5 font-bold text-exotic-purple bg-exotic-purple-light/40 px-2.5 py-1 rounded-md">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            {course.duration}
-                          </span>
-                          <span className="inline-flex items-center gap-1.5 font-bold text-stone-700 bg-stone-100 px-2.5 py-1 rounded-md">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-stone-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                            </svg>
-                            {course.cert}
-                          </span>
-                        </div>
-
-                        <p className="text-stone-600 text-sm leading-relaxed">
-                          {course.desc}
-                        </p>
-
-                        {/* Highlights bullet list */}
-                        <div className="space-y-2 pt-2">
-                          <p className="text-xs font-bold text-stone-900 uppercase tracking-wider">Materi Utama:</p>
-                          <ul className="grid grid-cols-1 gap-2">
-                            {course.highlights.map((highlight, hIdx) => (
-                              <li key={hIdx} className="flex items-start gap-2.5 text-xs text-stone-600">
-                                <span className="flex-shrink-0 w-4 h-4 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mt-0.5">
-                                  ✓
-                                </span>
-                                <span>{highlight}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-
+                      {/* Badges */}
+                      <div className="flex flex-wrap gap-2">
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-exotic-purple bg-exotic-purple/15 px-3 py-1.5 rounded-full border border-exotic-purple/25">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          {selectedCourse.duration}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5 text-xs font-bold text-stone-300 bg-white/8 px-3 py-1.5 rounded-full border border-white/10">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5 text-stone-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                          </svg>
+                          {selectedCourse.cert}
+                        </span>
                       </div>
 
-                      {/* Pricing / Booking button */}
-                      <div className="pt-6 border-t border-stone-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-                        <div>
-                          <p className="text-[10px] text-stone-400 font-bold uppercase tracking-wider">Biaya Kursus</p>
-                          <p className="text-stone-900 font-bold text-sm mt-0.5">{course.price}</p>
-                        </div>
+                      <p className="text-stone-400 text-sm leading-relaxed">{selectedCourse.desc}</p>
 
-                        <a
-                          href={`https://wa.me/6282147630666?text=Halo%20LKP%20Exotic%20Solo%20Baru%2C%20saya%20tertarik%20mendaftar%20atau%20tanya%20detail%20mengenai%20program%3A%20${encodeURIComponent(course.title)}.`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-5 py-3 rounded-full bg-stone-950 hover:bg-exotic-purple text-white text-center text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-sm hover:shadow-md hover:scale-105 transform hover-glow"
-                        >
-                          Daftar / Konsultasi
-                        </a>
+                      {/* Highlights */}
+                      <div className="space-y-2 pt-1">
+                        <p className="text-[10px] text-stone-500 font-bold uppercase tracking-wider">Materi Utama:</p>
+                        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {selectedCourse.highlights.map((h, i) => (
+                            <li key={i} className="flex items-start gap-2 text-xs text-stone-400">
+                              <span className="flex-shrink-0 w-4 h-4 rounded-full bg-emerald-500/15 text-emerald-400 flex items-center justify-center mt-0.5 text-[10px] font-bold">✓</span>
+                              <span>{h}</span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
-
                     </div>
 
-                  </HolographicCard>
+                    {/* CTA */}
+                    <div className="pt-6 border-t border-white/8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div>
+                        <p className="text-[10px] text-stone-500 font-bold uppercase tracking-wider">Biaya Kursus</p>
+                        <p className="text-white font-bold text-sm mt-0.5">{selectedCourse.price}</p>
+                      </div>
+                      <a
+                        href={`https://wa.me/6282147630666?text=Halo%20LKP%20Exotic%20Solo%20Baru%2C%20saya%20tertarik%20mendaftar%20atau%20tanya%20detail%20mengenai%20program%3A%20${encodeURIComponent(selectedCourse.title)}.`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-6 py-3 rounded-full bg-exotic-purple hover:bg-exotic-purple-hover text-white text-xs font-bold uppercase tracking-wider transition-all duration-300 shadow-lg hover:shadow-exotic-purple/40 hover:scale-105 transform flex items-center gap-2"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                        </svg>
+                        Daftar / Konsultasi
+                      </a>
+                    </div>
+                  </div>
+
                 </div>
-              ))}
-            </div>
-          </Reveal>
+              </div>
+            </Reveal>
+          )}
+
         </div>
       </section>
 
