@@ -1,5 +1,7 @@
 # LKP Exotic - Beauty Salon Landing Page & LMS Foundation
 
+🔗 **Live Preview:** [https://belajar-nextjs-taupe.vercel.app/](https://belajar-nextjs-taupe.vercel.app/)
+
 Project ini dibuat sebagai media pembelajaran untuk mendalami berbagai aspek modern web development menggunakan Next.js, mulai dari arsitektur kode, keamanan aplikasi, hingga implementasi animasi interaktif.
 
 ## 🎯 Tujuan Project
